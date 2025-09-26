@@ -531,23 +531,20 @@ function drawCellContent(x, y, size, value, targetValue, row, col) {
         const progress = Math.min(elapsed / animationDuration, 1);
         const easeProgress = 1 - Math.pow(1 - progress, 3);
         
-        // Calculate current position
-        const width = currentLevel.puzzle_info.grid_width;
-        const height = currentLevel.puzzle_info.grid_height;
-        const cellSize = Math.min(80, (canvas.width - 40) / width, (canvas.height - 180) / height);
-        const startX = (canvas.width - width * cellSize) / 2;
-        const startY = 80;
+        // Use consistent grid layout calculation
+        const layout = getCurrentGridLayout();
+        if (!layout) return;
         
-        const fromX = startX + animatingBall.startCol * cellSize + cellSize / 2;
-        const fromY = startY + animatingBall.startRow * cellSize + cellSize / 2;
-        const toX = startX + animatingBall.endCol * cellSize + cellSize / 2;
-        const toY = startY + animatingBall.endRow * cellSize + cellSize / 2;
+        const fromX = layout.startX + animatingBall.startCol * layout.cellSize + layout.cellSize / 2;
+        const fromY = layout.startY + animatingBall.startRow * layout.cellSize + layout.cellSize / 2;
+        const toX = layout.startX + animatingBall.endCol * layout.cellSize + layout.cellSize / 2;
+        const toY = layout.startY + animatingBall.endRow * layout.cellSize + layout.cellSize / 2;
         
         const currentX = fromX + (toX - fromX) * easeProgress;
         const currentY = fromY + (toY - fromY) * easeProgress;
         
         // Draw animating ball
-        const radius = Math.min(size * 0.3, 20);
+        const radius = Math.min(layout.cellSize * 0.3, 20);
         
         ctx.beginPath();
         ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
