@@ -11,6 +11,11 @@ let levelStartPopupActive = false; // Track if level start popup is shown
 let levelCompletePopupActive = false; // Track if level complete popup is shown
 let completionMoves = 0; // Store moves taken when level completed
 
+// Animation variables
+let animatingBall = null; // Currently animating ball
+let animationStartTime = 0;
+let animationDuration = 300; // Animation duration in milliseconds
+
 // Initialize game
 function initGame() {
     canvas = document.getElementById('game-canvas');
@@ -132,7 +137,7 @@ function drawGame() {
             const targetValue = targetData ? targetData[row][col] : 0;
             
             // Draw cell content
-            drawCellContent(x, y, cellSize, value, targetValue);
+            drawCellContent(x, y, cellSize, value, targetValue, row, col);
         }
     }
     
@@ -384,7 +389,7 @@ function drawGridLines(startX, startY, width, height, cellSize) {
 }
 
 // Draw individual cell
-function drawCellContent(x, y, size, value, targetValue) {
+function drawCellContent(x, y, size, value, targetValue, row, col) {
     // Draw target circle first (behind content)
     if (targetValue >= 2 && targetValue <= 4) {
         const centerX = x + size / 2;
@@ -417,6 +422,43 @@ function drawCellContent(x, y, size, value, targetValue) {
         // Highlight
         ctx.beginPath();
         ctx.arc(centerX - radius * 0.3, centerY - radius * 0.3, radius * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fill();
+    }
+    
+    // Draw animating ball if it affects this position
+    if (animatingBall && row !== undefined && col !== undefined) {
+        const currentTime = Date.now();
+        const elapsed = currentTime - animationStartTime;
+        const progress = Math.min(elapsed / animationDuration, 1);
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        
+        // Calculate current position
+        const width = currentLevel.puzzle_info.grid_width;
+        const height = currentLevel.puzzle_info.grid_height;
+        const cellSize = Math.min(80, (canvas.width - 40) / width, (canvas.height - 180) / height);
+        const startX = (canvas.width - width * cellSize) / 2;
+        const startY = 80;
+        
+        const fromX = startX + animatingBall.startCol * cellSize + cellSize / 2;
+        const fromY = startY + animatingBall.startRow * cellSize + cellSize / 2;
+        const toX = startX + animatingBall.endCol * cellSize + cellSize / 2;
+        const toY = startY + animatingBall.endRow * cellSize + cellSize / 2;
+        
+        const currentX = fromX + (toX - fromX) * easeProgress;
+        const currentY = fromY + (toY - fromY) * easeProgress;
+        
+        // Draw animating ball
+        const radius = Math.min(size * 0.3, 20);
+        
+        ctx.beginPath();
+        ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
+        ctx.fillStyle = getBallColor(animatingBall.value);
+        ctx.fill();
+        
+        // Highlight
+        ctx.beginPath();
+        ctx.arc(currentX - radius * 0.3, currentY - radius * 0.3, radius * 0.4, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.fill();
     }
@@ -758,16 +800,17 @@ function moveBall(row, col, direction) {
         newCol = nextCol;
     }
     
-    // Place ball
-    gridData[newRow][newCol] = ballValue;
+    // Start animation instead of instant placement
+    animatingBall = {
+        value: ballValue,
+        startRow: row,
+        startCol: col,
+        endRow: newRow,
+        endCol: newCol
+    };
     
-    // Increment move counter and update display
-    moveCount++;
-    updateScoreDisplay();
-    
-    // Redraw and check win
-    drawGame();
-    checkWin();
+    animationStartTime = Date.now();
+    animateBallMovement();
 }
 
 function checkWin() {
@@ -788,6 +831,39 @@ function checkWin() {
     completionMoves = moveCount;
     levelCompletePopupActive = true;
     drawGame();
+}
+
+// Animate ball movement
+function animateBallMovement() {
+    if (!animatingBall) return;
+    
+    const currentTime = Date.now();
+    const elapsed = currentTime - animationStartTime;
+    const progress = Math.min(elapsed / animationDuration, 1);
+    
+    // Easing function for smooth animation
+    const easeProgress = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+    
+    if (progress >= 1) {
+        // Animation complete - place ball at final position
+        gridData[animatingBall.endRow][animatingBall.endCol] = animatingBall.value;
+        animatingBall = null;
+        
+        // Increment move counter and update display
+        moveCount++;
+        updateScoreDisplay();
+        
+        // Check win condition
+        checkWin();
+    }
+    
+    // Redraw game with current animation state
+    drawGame();
+    
+    // Continue animation if not complete
+    if (progress < 1) {
+        requestAnimationFrame(animateBallMovement);
+    }
 }
 
 // Update score display to show moves
