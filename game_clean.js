@@ -17,6 +17,24 @@ let animationStartTime = 0;
 let animationDuration = 300; // Animation duration in milliseconds
 
 // Initialize game
+// Calculate current grid layout - used by both drawing and interaction
+function getCurrentGridLayout() {
+    if (!currentLevel) return null;
+    
+    const width = currentLevel.puzzle_info.grid_width;
+    const height = currentLevel.puzzle_info.grid_height;
+    
+    // Use same calculation as drawGame() for consistency
+    const availableWidth = canvas.width - 40; // 20px padding on each side
+    const availableHeight = canvas.height - 160; // Leave space for title and buttons
+    const maxCellSize = 90; // Maximum cell size for good visibility
+    const cellSize = Math.min(maxCellSize, availableWidth / width, availableHeight / height);
+    const startX = (canvas.width - width * cellSize) / 2;
+    const startY = 75;
+    
+    return { width, height, cellSize, startX, startY };
+}
+
 function initGame() {
     canvas = document.getElementById('game-canvas');
     ctx = canvas.getContext('2d');
@@ -184,8 +202,8 @@ function drawGame() {
         return;
     }
     
-    const width = currentLevel.puzzle_info.grid_width;
-    const height = currentLevel.puzzle_info.grid_height;
+    const layout = getCurrentGridLayout();
+    if (!layout) return;
     
     // Title - responsive font size
     ctx.fillStyle = '#333';
@@ -199,35 +217,27 @@ function drawGame() {
     ctx.font = `${subtitleFontSize}px Arial`;
     ctx.fillText('Drag balls to move them!', canvas.width / 2, 60);
     
-    // Calculate grid layout - improved responsive calculation
-    const availableWidth = canvas.width - 40; // 20px padding on each side
-    const availableHeight = canvas.height - 160; // Leave space for title and buttons
-    const maxCellSize = 90; // Maximum cell size for good visibility
-    const cellSize = Math.min(maxCellSize, availableWidth / width, availableHeight / height);
-    const startX = (canvas.width - width * cellSize) / 2;
-    const startY = 75;
-    
     // Draw grid lines
-    drawGridLines(startX, startY, width, height, cellSize);
+    drawGridLines(layout.startX, layout.startY, layout.width, layout.height, layout.cellSize);
     
     // Draw grid content (balls, walls, targets)
-    for (let row = 0; row < height; row++) {
-        for (let col = 0; col < width; col++) {
-            const x = startX + col * cellSize;
-            const y = startY + row * cellSize;
+    for (let row = 0; row < layout.height; row++) {
+        for (let col = 0; col < layout.width; col++) {
+            const x = layout.startX + col * layout.cellSize;
+            const y = layout.startY + row * layout.cellSize;
             const value = gridData[row][col];
             const targetValue = targetData ? targetData[row][col] : 0;
             
             // Draw cell content
-            drawCellContent(x, y, cellSize, value, targetValue, row, col);
+            drawCellContent(x, y, layout.cellSize, value, targetValue, row, col);
         }
     }
     
     // Draw game buttons
-    drawGameButtons(startX, startY + height * cellSize + 20, width * cellSize);
+    drawGameButtons(layout.startX, layout.startY + layout.height * layout.cellSize + 20, layout.width * layout.cellSize);
     
     // Draw instructions
-    drawInstructions(startX, startY + height * cellSize + 70, width * cellSize);
+    drawInstructions(layout.startX, layout.startY + layout.height * layout.cellSize + 70, layout.width * layout.cellSize);
     
     // Draw level start popup if active
     if (levelStartPopupActive) {
@@ -681,33 +691,52 @@ function drawTestGrid() {
     }
 }
 
-// Basic event setup
+// Enhanced event setup with proper touch support
 function setupEvents() {
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('click', handleButtonClick);
     
-    // Simple mobile touch support
+    // Enhanced mobile touch support
     canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         const touch = e.touches[0];
         const rect = canvas.getBoundingClientRect();
+        
+        // Get coordinates accounting for canvas scaling
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
         handleMouseDown({
             clientX: touch.clientX,
-            clientY: touch.clientY
+            clientY: touch.clientY,
+            preventDefault: () => {}
         });
+    }, { passive: false });
+    
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        // Handle touch move for better drag detection if needed
     }, { passive: false });
     
     canvas.addEventListener('touchend', (e) => {
         e.preventDefault();
         const touch = e.changedTouches[0];
-        handleMouseUp({});
-        // Handle button clicks
-        handleButtonClick({
+        
+        // Use the same coordinates for both mouseup and button click
+        const fakeEvent = {
             clientX: touch.clientX,
-            clientY: touch.clientY
-        });
+            clientY: touch.clientY,
+            preventDefault: () => {}
+        };
+        
+        handleMouseUp(fakeEvent);
+        
+        // Only handle button clicks if not dragging
+        if (!isDragging) {
+            handleButtonClick(fakeEvent);
+        }
     }, { passive: false });
 }
 
@@ -715,8 +744,13 @@ function handleButtonClick(e) {
     if (isDragging) return; // Don't handle button clicks during drag
     
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    
+    // Account for canvas scaling when CSS resizes the canvas
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     
     // Check if level start popup is active
     if (levelStartPopupActive) {
@@ -814,8 +848,13 @@ function handleMouseDown(e) {
     if (!currentLevel) return;
     
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    
+    // Account for canvas scaling when CSS resizes the canvas
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     
     const cell = getCellFromPosition(x, y);
     if (cell && gridData[cell.row][cell.col] >= 2 && gridData[cell.row][cell.col] <= 4) {
@@ -823,7 +862,7 @@ function handleMouseDown(e) {
         dragStartX = x;
         dragStartY = y;
         dragStartCell = cell;
-        e.preventDefault();
+        if (e.preventDefault) e.preventDefault();
     }
 }
 
@@ -835,8 +874,13 @@ function handleMouseUp(e) {
     if (!isDragging) return;
     
     const rect = canvas.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
+    
+    // Account for canvas scaling when CSS resizes the canvas
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const endX = (e.clientX - rect.left) * scaleX;
+    const endY = (e.clientY - rect.top) * scaleY;
     
     const direction = getDragDirection(dragStartX, dragStartY, endX, endY);
     if (direction && dragStartCell) {
@@ -848,18 +892,13 @@ function handleMouseUp(e) {
 }
 
 function getCellFromPosition(x, y) {
-    if (!currentLevel) return null;
+    const layout = getCurrentGridLayout();
+    if (!layout) return null;
     
-    const width = currentLevel.puzzle_info.grid_width;
-    const height = currentLevel.puzzle_info.grid_height;
-    const cellSize = Math.min(80, (canvas.width - 40) / width, (canvas.height - 180) / height);
-    const startX = (canvas.width - width * cellSize) / 2;
-    const startY = 80;
+    const col = Math.floor((x - layout.startX) / layout.cellSize);
+    const row = Math.floor((y - layout.startY) / layout.cellSize);
     
-    const col = Math.floor((x - startX) / cellSize);
-    const row = Math.floor((y - startY) / cellSize);
-    
-    if (row >= 0 && row < height && col >= 0 && col < width) {
+    if (row >= 0 && row < layout.height && col >= 0 && col < layout.width) {
         return { row, col };
     }
     return null;
@@ -868,7 +907,9 @@ function getCellFromPosition(x, y) {
 function getDragDirection(startX, startY, endX, endY) {
     const deltaX = endX - startX;
     const deltaY = endY - startY;
-    const minDistance = 30;
+    
+    // Make minimum distance responsive to canvas size
+    const minDistance = Math.max(20, Math.min(50, canvas.width / 15));
     
     if (Math.abs(deltaX) < minDistance && Math.abs(deltaY) < minDistance) {
         return null;
