@@ -21,14 +21,63 @@ function initGame() {
     canvas = document.getElementById('game-canvas');
     ctx = canvas.getContext('2d');
     
-    // Set canvas size
-    canvas.width = 350;
-    canvas.height = 500;
+    // Set responsive canvas size
+    resizeCanvas();
     
     console.log('Canvas initialized');
     
+    // Add resize listener
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+        // Redraw current state
+        if (currentLevel && gridData) {
+            drawGame();
+        }
+    });
+    
+    // Add orientation change listener for mobile
+    window.addEventListener('orientationchange', () => {
+        setTimeout(() => {
+            resizeCanvas();
+            if (currentLevel && gridData) {
+                drawGame();
+            }
+        }, 100);
+    });
+    
     // Load first level
     loadLevel(currentLevelNumber);
+}
+
+function resizeCanvas() {
+    // Calculate responsive canvas size
+    const container = document.getElementById('app');
+    const containerWidth = container.clientWidth;
+    const windowHeight = window.innerHeight;
+    
+    // Calculate optimal dimensions with some padding
+    const maxWidth = Math.min(400, containerWidth - 40); // Max 400px width, 40px padding
+    const maxHeight = Math.min(600, windowHeight - 200); // Leave room for UI elements
+    
+    // Maintain aspect ratio of 7:10 (width:height)
+    const aspectRatio = 0.7;
+    let canvasWidth = maxWidth;
+    let canvasHeight = maxWidth / aspectRatio;
+    
+    // If height exceeds maximum, adjust based on height
+    if (canvasHeight > maxHeight) {
+        canvasHeight = maxHeight;
+        canvasWidth = maxHeight * aspectRatio;
+    }
+    
+    // Ensure minimum size for playability
+    canvasWidth = Math.max(280, canvasWidth);
+    canvasHeight = Math.max(400, canvasHeight);
+    
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    
+    console.log(`Canvas resized to: ${canvasWidth}x${canvasHeight}`);
 }
 
 // Load level from JSON
@@ -138,19 +187,25 @@ function drawGame() {
     const width = currentLevel.puzzle_info.grid_width;
     const height = currentLevel.puzzle_info.grid_height;
     
-    // Title
+    // Title - responsive font size
     ctx.fillStyle = '#333';
-    ctx.font = 'bold 20px Arial';
+    const titleFontSize = Math.max(16, Math.min(24, canvas.width / 15));
+    const subtitleFontSize = Math.max(12, Math.min(16, canvas.width / 22));
+    
+    ctx.font = `bold ${titleFontSize}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText(`Level ${currentLevelNumber}`, canvas.width / 2, 30);
+    ctx.fillText(`Level ${currentLevelNumber}`, canvas.width / 2, 35);
     
-    ctx.font = '14px Arial';
-    ctx.fillText('Drag balls to move them!', canvas.width / 2, 55);
+    ctx.font = `${subtitleFontSize}px Arial`;
+    ctx.fillText('Drag balls to move them!', canvas.width / 2, 60);
     
-    // Calculate grid layout
-    const cellSize = Math.min(80, (canvas.width - 40) / width, (canvas.height - 180) / height);
+    // Calculate grid layout - improved responsive calculation
+    const availableWidth = canvas.width - 40; // 20px padding on each side
+    const availableHeight = canvas.height - 160; // Leave space for title and buttons
+    const maxCellSize = 90; // Maximum cell size for good visibility
+    const cellSize = Math.min(maxCellSize, availableWidth / width, availableHeight / height);
     const startX = (canvas.width - width * cellSize) / 2;
-    const startY = 80;
+    const startY = 75;
     
     // Draw grid lines
     drawGridLines(startX, startY, width, height, cellSize);
@@ -332,11 +387,12 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.closePath();
 }
 
-// Draw game buttons (Restart and Levels)
+// Draw game buttons (Restart and Levels) - responsive
 function drawGameButtons(startX, buttonY, gridWidth) {
     const buttonWidth = (gridWidth - 10) / 2; // Split width between two buttons with gap
-    const buttonHeight = 35;
+    const buttonHeight = Math.max(30, Math.min(40, canvas.height / 15)); // Responsive height
     const cornerRadius = 8;
+    const fontSize = Math.max(12, Math.min(16, canvas.width / 25)); // Responsive font
     
     // Restart Level button
     ctx.fillStyle = '#FF9800';
@@ -344,7 +400,7 @@ function drawGameButtons(startX, buttonY, gridWidth) {
     ctx.fill();
     
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px Arial';
+    ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('Restart Level', startX + buttonWidth/2, buttonY + buttonHeight/2);
@@ -355,17 +411,21 @@ function drawGameButtons(startX, buttonY, gridWidth) {
     ctx.fill();
     
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px Arial';
+    ctx.font = `bold ${fontSize}px Arial`;
     ctx.fillText('Levels', startX + buttonWidth + 10 + buttonWidth/2, buttonY + buttonHeight/2);
 }
 
-// Draw instructions below buttons
+// Draw instructions below buttons - responsive
 function drawInstructions(startX, instructionsY, gridWidth) {
     // Make box wider than the grid - 110% of grid width and center it
     const boxWidth = gridWidth * 1.1;
     const boxStartX = startX - (boxWidth - gridWidth) / 2; // Center the wider box
-    const boxHeight = 80; // Increased height to prevent text cutoff
+    const boxHeight = Math.max(60, Math.min(90, canvas.height / 8)); // Responsive height
     const cornerRadius = 8;
+    
+    // Responsive font sizes
+    const titleFontSize = Math.max(14, Math.min(20, canvas.width / 20));
+    const bodyFontSize = Math.max(11, Math.min(16, canvas.width / 25));
     
     ctx.fillStyle = '#8e44ad'; // Purple background
     drawRoundedRect(boxStartX, instructionsY, boxWidth, boxHeight, cornerRadius);
@@ -379,16 +439,17 @@ function drawInstructions(startX, instructionsY, gridWidth) {
     
     // Instructions text
     ctx.fillStyle = '#ffffff'; // White text for contrast
-    ctx.font = 'bold 18px Arial'; // Bigger font
+    ctx.font = `bold ${titleFontSize}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('How to Play:', boxStartX + boxWidth/2, instructionsY + 12);
+    ctx.fillText('How to Play:', boxStartX + boxWidth/2, instructionsY + 10);
     
     // Multi-line instruction text
-    ctx.font = '15px Arial'; // Bigger font for body text
+    ctx.font = `${bodyFontSize}px Arial`;
     ctx.fillStyle = '#f8f9fa'; // Light color for body text
-    ctx.fillText('Drag the colored balls to move them', boxStartX + boxWidth/2, instructionsY + 36);
-    ctx.fillText('until they reach their target circles!', boxStartX + boxWidth/2, instructionsY + 54);
+    const lineSpacing = bodyFontSize + 4;
+    ctx.fillText('Drag the colored balls to move them', boxStartX + boxWidth/2, instructionsY + 25 + titleFontSize);
+    ctx.fillText('until they reach their target circles!', boxStartX + boxWidth/2, instructionsY + 25 + titleFontSize + lineSpacing);
 }
 
 // Draw simple grid lines
