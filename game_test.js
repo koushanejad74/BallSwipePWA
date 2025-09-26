@@ -4,6 +4,11 @@ let currentLevel = null;
 let gridData = null;
 let targetData = null;
 let currentStep = 0;
+let currentLevelNumber = 1;
+let totalLevels = 6; // Update this based on how many levels you have
+let gameState = 'playing'; // 'playing' or 'levelSelect'
+let levelProgress = {}; // Track which levels are completed
+let maxUnlockedLevel = 1; // Highest level the player can access
 
 // Game interaction variables
 let isDragging = false;
@@ -11,8 +16,18 @@ let dragStartX = 0;
 let dragStartY = 0;
 let dragStartCell = null;
 
-// Initialize game
-function initGame() {
+// Initialize gam    // Player won this level!
+    markLevelCompleted(currentLevelNumber);
+    
+    setTimeout(() => {
+        if (currentLevelNumber < totalLevels) {
+            alert(`🎉 Level ${currentLevelNumber} Complete! 🎉\nNext level unlocked!`);
+            showLevelSelector();
+        } else {
+            alert('🏆 Congratulations! You completed ALL levels! 🏆\nYou are a puzzle master!');
+            showLevelSelector();
+        }
+    }, 100);initGame() {
     canvas = document.getElementById('game-canvas');
     ctx = canvas.getContext('2d');
     
@@ -22,22 +37,29 @@ function initGame() {
     
     console.log('Canvas initialized:', canvas.width, 'x', canvas.height);
     
-    // Try to load JSON level, fallback to test grid
-    loadLevel();
+    // Load saved progress
+    loadProgress();
+    
+    // Start with level selector
+    showLevelSelector();
+}
 }
 
 // Load level from JSON
-async function loadLevel() {
+async function loadLevel(levelNumber) {
     try {
-        console.log('Attempting to load Level001.json...');
-        const response = await fetch('levels/Level001.json');
+        const levelFileName = `Level${levelNumber.toString().padStart(3, '0')}.json`;
+        console.log(`Attempting to load ${levelFileName}...`);
+        
+        const response = await fetch(`levels/${levelFileName}`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         currentLevel = await response.json();
-        console.log('Level loaded:', currentLevel);
+        currentLevelNumber = levelNumber;
+        console.log(`Level ${levelNumber} loaded:`, currentLevel);
         
         // Parse the first solution step (starting state)
         currentStep = 0;
@@ -53,7 +75,7 @@ async function loadLevel() {
         setupGridNavigation();
         
     } catch (error) {
-        console.error('Failed to load level:', error);
+        console.error(`Failed to load level ${levelNumber}:`, error);
         console.log('Falling back to test grid...');
         drawTestGrid();
     }
@@ -119,7 +141,7 @@ function drawJSONGrid() {
     ctx.fillStyle = '#333';
     ctx.font = 'bold 20px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(`Level ${gridWidth}x${gridHeight}`, canvas.width / 2, 30);
+    ctx.fillText(`Level ${currentLevelNumber} (${gridWidth}x${gridHeight})`, canvas.width / 2, 30);
     
     ctx.font = '16px Arial';
     ctx.fillText('🎮 Drag balls to move them!', canvas.width / 2, 55);
@@ -261,12 +283,47 @@ function drawLegend() {
     });
 }
 
-// Draw navigation buttons - removed, no longer needed
+// Draw navigation buttons - level controls
 function drawNavigationButtons() {
-    // No buttons needed - pure gameplay mode
+    const buttonY = canvas.height - 50;
+    const buttonWidth = 60;
+    const buttonHeight = 30;
+    
+    // Previous Level button
+    if (currentLevelNumber > 1) {
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillRect(20, buttonY, buttonWidth, buttonHeight);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Prev', 50, buttonY + buttonHeight/2);
+    }
+    
+    // Restart Level button
+    ctx.fillStyle = '#FF9800';
+    ctx.fillRect(90, buttonY, buttonWidth, buttonHeight);
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px Arial';
+    ctx.fillText('Restart', 120, buttonY + buttonHeight/2);
+    
+    // Next Level button (only if not on last level)
+    if (currentLevelNumber < totalLevels) {
+        ctx.fillStyle = '#2196F3';
+        ctx.fillRect(160, buttonY, buttonWidth, buttonHeight);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px Arial';
+        ctx.fillText('Next', 190, buttonY + buttonHeight/2);
+    }
+    
+    // Level indicator
+    ctx.fillStyle = '#666';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${currentLevelNumber}/${totalLevels}`, canvas.width - 40, buttonY + buttonHeight/2);
 }
 
-// Setup drag gameplay only
+// Setup drag gameplay and level navigation
 function setupGridNavigation() {
     // Mouse events
     canvas.addEventListener('mousedown', handleMouseDown);
@@ -277,6 +334,9 @@ function setupGridNavigation() {
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    
+    // Click events for level navigation
+    canvas.addEventListener('click', handleLevelNavigation);
 }
 
 // Mouse event handlers
@@ -464,6 +524,36 @@ function drawDragPreview(currentX, currentY) {
     drawJSONGrid();
 }
 
+// Handle level navigation button clicks
+function handleLevelNavigation(e) {
+    if (isDragging) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const buttonY = canvas.height - 50;
+    const buttonHeight = 30;
+    
+    // Previous Level button
+    if (currentLevelNumber > 1 && x >= 20 && x <= 80 && y >= buttonY && y <= buttonY + buttonHeight) {
+        loadLevel(currentLevelNumber - 1);
+        return;
+    }
+    
+    // Restart Level button
+    if (x >= 90 && x <= 150 && y >= buttonY && y <= buttonY + buttonHeight) {
+        loadLevel(currentLevelNumber);
+        return;
+    }
+    
+    // Next Level button
+    if (currentLevelNumber < totalLevels && x >= 160 && x <= 220 && y >= buttonY && y <= buttonY + buttonHeight) {
+        loadLevel(currentLevelNumber + 1);
+        return;
+    }
+}
+
 // Check if player has achieved the winning configuration
 function checkWinCondition() {
     if (!targetData || !gridData) return;
@@ -480,10 +570,16 @@ function checkWinCondition() {
         }
     }
     
-    // Player won!
+    // Player won this level!
     setTimeout(() => {
-        alert('🎉 Congratulations! You solved the puzzle! 🎉');
-        console.log('Player won the level!');
+        if (currentLevelNumber < totalLevels) {
+            alert(`🎉 Level ${currentLevelNumber} Complete! 🎉\nLoading Level ${currentLevelNumber + 1}...`);
+            loadLevel(currentLevelNumber + 1);
+        } else {
+            alert('� Congratulations! You completed ALL levels! 🏆\nYou are a puzzle master!');
+            // Could reset to level 1 or show a completion screen
+            console.log('Player completed all levels!');
+        }
     }, 100);
 }
 
@@ -587,3 +683,171 @@ function getTextColor(value) {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', initGame);
+
+// Level selector and progress tracking functions
+function loadProgress() {
+    const saved = localStorage.getItem('BallSwipePWA_progress');
+    if (saved) {
+        const data = JSON.parse(saved);
+        levelProgress = data.levelProgress || {};
+        maxUnlockedLevel = data.maxUnlockedLevel || 1;
+    } else {
+        levelProgress = {};
+        maxUnlockedLevel = 1;
+    }
+    console.log('Progress loaded:', { levelProgress, maxUnlockedLevel });
+}
+
+function saveProgress() {
+    const data = {
+        levelProgress: levelProgress,
+        maxUnlockedLevel: maxUnlockedLevel
+    };
+    localStorage.setItem('BallSwipePWA_progress', JSON.stringify(data));
+    console.log('Progress saved:', data);
+}
+
+function markLevelCompleted(levelNum) {
+    levelProgress[levelNum] = true;
+    if (levelNum === maxUnlockedLevel && levelNum < totalLevels) {
+        maxUnlockedLevel = levelNum + 1;
+    }
+    saveProgress();
+    console.log(`Level ${levelNum} completed. Max unlocked: ${maxUnlockedLevel}`);
+}
+
+function showLevelSelector() {
+    gameState = 'levelSelect';
+    drawLevelSelector();
+    setupLevelSelectorEvents();
+}
+
+function drawLevelSelector() {
+    // Clear canvas
+    ctx.fillStyle = '#f5f5f5';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Title
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Select Level', canvas.width / 2, 40);
+    
+    // Level grid (3x2 for 6 levels)
+    const cols = 3;
+    const rows = Math.ceil(totalLevels / cols);
+    const cellSize = 80;
+    const startX = (canvas.width - (cols * cellSize)) / 2;
+    const startY = 80;
+    
+    for (let i = 0; i < totalLevels; i++) {
+        const levelNum = i + 1;
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const x = startX + col * cellSize;
+        const y = startY + row * cellSize;
+        
+        const isCompleted = levelProgress[levelNum];
+        const isUnlocked = levelNum <= maxUnlockedLevel;
+        
+        // Level button background
+        if (!isUnlocked) {
+            ctx.fillStyle = '#ccc'; // Locked
+        } else if (isCompleted) {
+            ctx.fillStyle = '#4CAF50'; // Completed
+        } else {
+            ctx.fillStyle = '#2196F3'; // Available
+        }
+        
+        ctx.fillRect(x + 5, y + 5, cellSize - 10, cellSize - 10);
+        
+        // Border
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 5, y + 5, cellSize - 10, cellSize - 10);
+        
+        // Level number
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(levelNum.toString(), x + cellSize/2, y + cellSize/2);
+        
+        // Status icons
+        if (isCompleted) {
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Arial';
+            ctx.fillText('✓', x + cellSize - 15, y + 15);
+        } else if (!isUnlocked) {
+            ctx.fillStyle = '#666';
+            ctx.font = '16px Arial';
+            ctx.fillText('🔒', x + cellSize - 15, y + 15);
+        }
+    }
+    
+    // Instructions
+    ctx.fillStyle = '#666';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    const instrY = startY + rows * cellSize + 30;
+    ctx.fillText('Green = Completed, Blue = Available, Gray = Locked', canvas.width / 2, instrY);
+    
+    // Back to game button (if in a level)
+    if (currentLevel) {
+        ctx.fillStyle = '#FF5722';
+        ctx.fillRect(canvas.width / 2 - 60, canvas.height - 50, 120, 30);
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px Arial';
+        ctx.fillText('Back to Game', canvas.width / 2, canvas.height - 35);
+    }
+}
+
+function setupLevelSelectorEvents() {
+    canvas.removeEventListener('click', handleLevelNavigation);
+    canvas.removeEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('click', handleLevelSelectorClick);
+}
+
+function handleLevelSelectorClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Level grid detection
+    const cols = 3;
+    const cellSize = 80;
+    const startX = (canvas.width - (cols * cellSize)) / 2;
+    const startY = 80;
+    
+    for (let i = 0; i < totalLevels; i++) {
+        const levelNum = i + 1;
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const levelX = startX + col * cellSize;
+        const levelY = startY + row * cellSize;
+        
+        if (x >= levelX + 5 && x <= levelX + cellSize - 5 && 
+            y >= levelY + 5 && y <= levelY + cellSize - 5) {
+            
+            if (levelNum <= maxUnlockedLevel) {
+                // Level is unlocked, load it
+                gameState = 'playing';
+                loadLevel(levelNum);
+                return;
+            } else {
+                // Level is locked
+                alert('🔒 This level is locked! Complete previous levels to unlock it.');
+                return;
+            }
+        }
+    }
+    
+    // Back to game button
+    if (currentLevel && 
+        x >= canvas.width / 2 - 60 && x <= canvas.width / 2 + 60 && 
+        y >= canvas.height - 50 && y <= canvas.height - 20) {
+        gameState = 'playing';
+        drawJSONGrid();
+        setupGridNavigation();
+    }
+}

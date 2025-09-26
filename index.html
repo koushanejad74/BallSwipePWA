@@ -25,8 +25,8 @@
 <body>
     <div id="app">
         <header>
-            <h1>🏐 Ball Swipe Game</h1>
-            <div class="score">Score: <span id="score">0</span></div>
+            <h1>🏐 Ball Swipe</h1>
+            <div class="score">Moves: <span id="score">0</span></div>
         </header>
         
         <main>
@@ -35,20 +35,9 @@
                 <div id="game-over" class="hidden">
                     <h2>Game Over!</h2>
                     <p>Final Score: <span id="final-score">0</span></p>
-                    <button id="restart-btn" class="btn">Play Again</button>
                 </div>
             </div>
         </main>
-        
-        <div class="controls">
-            <button id="start-btn" class="btn primary">Start Game</button>
-            <button id="pause-btn" class="btn" disabled>Pause</button>
-        </div>
-        
-        <div class="instructions">
-            <h3>How to Play:</h3>
-            <p>Swipe or drag to move the paddle and keep the ball bouncing!</p>
-        </div>
     </div>
     
     <!-- Install PWA Banner -->
@@ -60,7 +49,7 @@
         </div>
     </div>
     
-    <script src="game_test.js"></script>
+    <script src="game_clean.js"></script>
     <script src="pwa.js"></script>
 </body>
 </html>
