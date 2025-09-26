@@ -2,7 +2,14 @@
 let canvas, ctx;
 let currentLevel = null;
 let gridData = null;
+let targetData = null;
 let currentStep = 0;
+
+// Game interaction variables
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragStartCell = null;
 
 // Initialize game
 function initGame() {
@@ -32,9 +39,12 @@ async function loadLevel() {
         currentLevel = await response.json();
         console.log('Level loaded:', currentLevel);
         
-        // Parse the first solution step
+        // Parse the first solution step (starting state)
         currentStep = 0;
         parseGridState(currentLevel.solution_path[currentStep]);
+        
+        // Parse the target state (last solution step)
+        parseTargetState(currentLevel.solution_path[currentLevel.solution_path.length - 1]);
         
         // Draw the JSON-based grid
         drawJSONGrid();
@@ -65,6 +75,22 @@ function parseGridState(stateString) {
     console.log('Grid data parsed:', gridData);
 }
 
+// Parse target state (winning configuration)
+function parseTargetState(targetString) {
+    const gridWidth = currentLevel.puzzle_info.grid_width;
+    const gridHeight = currentLevel.puzzle_info.grid_height;
+    
+    targetData = [];
+    for (let i = 0; i < gridHeight; i++) {
+        targetData[i] = [];
+        for (let j = 0; j < gridWidth; j++) {
+            const index = i * gridWidth + j;
+            targetData[i][j] = parseInt(targetString[index]) || 0;
+        }
+    }
+    console.log('Target data parsed:', targetData);
+}
+
 // Draw grid based on JSON data
 function drawJSONGrid() {
     console.log('Drawing JSON-based grid...');
@@ -89,15 +115,16 @@ function drawJSONGrid() {
     const startX = (canvas.width - (gridWidth * cellSize)) / 2;
     const startY = 100;
     
-    // Draw title and step info
+    // Draw title and info
     ctx.fillStyle = '#333';
     ctx.font = 'bold 20px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(`Level ${gridWidth}x${gridHeight}`, canvas.width / 2, 30);
     
     ctx.font = '16px Arial';
-    ctx.fillText(`Step: ${currentStep + 1} / ${currentLevel.solution_path.length}`, canvas.width / 2, 55);
-    ctx.fillText(`Target: ${currentLevel.puzzle_info.steps_to_solve} steps`, canvas.width / 2, 75);
+    ctx.fillText('🎮 Drag balls to move them!', canvas.width / 2, 55);
+    ctx.font = '14px Arial';
+    ctx.fillText('Balls slide until they hit walls or other balls', canvas.width / 2, 75);
     
     // Draw grid cells
     for (let row = 0; row < gridHeight; row++) {
@@ -105,6 +132,7 @@ function drawJSONGrid() {
             const x = startX + col * cellSize;
             const y = startY + row * cellSize;
             const value = gridData[row][col];
+            const targetValue = targetData ? targetData[row][col] : 0;
             
             if (value === 0) {
                 // Empty cell - light background with border
@@ -142,6 +170,29 @@ function drawJSONGrid() {
                 ctx.arc(centerX - ballRadius * 0.3, centerY - ballRadius * 0.3, ballRadius * 0.4, 0, Math.PI * 2);
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                 ctx.fill();
+            }
+            
+            // Draw target circles for winning positions (only for ball colors 2, 3, 4)
+            if (targetValue >= 2 && targetValue <= 4) {
+                const centerX = x + cellSize / 2;
+                const centerY = y + cellSize / 2;
+                const targetRadius = Math.min(cellSize * 0.35, 22);
+                
+                // Draw empty circle outline
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, targetRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = getBallColor(targetValue);
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // Add a subtle inner circle for better visibility
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, targetRadius - 2, 0, Math.PI * 2);
+                ctx.strokeStyle = getBallColor(targetValue);
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.3;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
             }
         }
     }
@@ -210,53 +261,230 @@ function drawLegend() {
     });
 }
 
-// Draw navigation buttons
+// Draw navigation buttons - removed, no longer needed
 function drawNavigationButtons() {
-    const buttonY = canvas.height - 50;
-    const buttonWidth = 80;
-    const buttonHeight = 30;
-    
-    // Previous button
-    ctx.fillStyle = currentStep > 0 ? '#4CAF50' : '#ccc';
-    ctx.fillRect(50, buttonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Previous', 90, buttonY + buttonHeight/2);
-    
-    // Next button
-    ctx.fillStyle = currentStep < currentLevel.solution_path.length - 1 ? '#2196F3' : '#ccc';
-    ctx.fillRect(220, buttonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#fff';
-    ctx.fillText('Next', 260, buttonY + buttonHeight/2);
+    // No buttons needed - pure gameplay mode
 }
 
-// Setup click navigation
+// Setup drag gameplay only
 function setupGridNavigation() {
-    canvas.addEventListener('click', function(e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+    // Mouse events
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    
+    // Touch events for mobile
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+}
+
+// Mouse event handlers
+function handleMouseDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const cell = getCellFromPosition(x, y);
+    if (cell && isBall(gridData[cell.row][cell.col])) {
+        isDragging = true;
+        dragStartX = x;
+        dragStartY = y;
+        dragStartCell = cell;
+        e.preventDefault();
+    }
+}
+
+function handleMouseMove(e) {
+    if (!isDragging) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    
+    // Show drag preview (optional visual feedback)
+    drawDragPreview(currentX, currentY);
+}
+
+function handleMouseUp(e) {
+    if (!isDragging) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+    
+    const direction = getDragDirection(dragStartX, dragStartY, endX, endY);
+    if (direction && dragStartCell) {
+        moveBall(dragStartCell.row, dragStartCell.col, direction);
+    }
+    
+    isDragging = false;
+    dragStartCell = null;
+    drawJSONGrid(); // Redraw without preview
+}
+
+// Touch event handlers (similar to mouse)
+function handleTouchStart(e) {
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    const cell = getCellFromPosition(x, y);
+    if (cell && isBall(gridData[cell.row][cell.col])) {
+        isDragging = true;
+        dragStartX = x;
+        dragStartY = y;
+        dragStartCell = cell;
+        e.preventDefault();
+    }
+}
+
+function handleTouchMove(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+    if (!isDragging) return;
+    
+    const touch = e.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    const endX = touch.clientX - rect.left;
+    const endY = touch.clientY - rect.top;
+    
+    const direction = getDragDirection(dragStartX, dragStartY, endX, endY);
+    if (direction && dragStartCell) {
+        moveBall(dragStartCell.row, dragStartCell.col, direction);
+    }
+    
+    isDragging = false;
+    dragStartCell = null;
+    drawJSONGrid(); // Redraw without preview
+    e.preventDefault();
+}
+
+// Helper functions
+function getCellFromPosition(x, y) {
+    if (!currentLevel) return null;
+    
+    const gridWidth = currentLevel.puzzle_info.grid_width;
+    const gridHeight = currentLevel.puzzle_info.grid_height;
+    const cellSize = Math.min(80, (canvas.width - 60) / gridWidth, (canvas.height - 200) / gridHeight);
+    const startX = (canvas.width - (gridWidth * cellSize)) / 2;
+    const startY = 100;
+    
+    const col = Math.floor((x - startX) / cellSize);
+    const row = Math.floor((y - startY) / cellSize);
+    
+    if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth) {
+        return { row, col };
+    }
+    return null;
+}
+
+function isBall(value) {
+    return value >= 2 && value <= 4;
+}
+
+function getDragDirection(startX, startY, endX, endY) {
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const minDistance = 30; // Minimum drag distance
+    
+    if (Math.abs(deltaX) < minDistance && Math.abs(deltaY) < minDistance) {
+        return null; // Not enough movement
+    }
+    
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        return deltaX > 0 ? 'right' : 'left';
+    } else {
+        return deltaY > 0 ? 'down' : 'up';
+    }
+}
+
+function moveBall(row, col, direction) {
+    const ballValue = gridData[row][col];
+    if (!isBall(ballValue)) return;
+    
+    const gridWidth = currentLevel.puzzle_info.grid_width;
+    const gridHeight = currentLevel.puzzle_info.grid_height;
+    
+    let newRow = row;
+    let newCol = col;
+    
+    // Calculate direction deltas
+    const deltas = {
+        'up': [-1, 0],
+        'down': [1, 0],
+        'left': [0, -1],
+        'right': [0, 1]
+    };
+    
+    const [deltaRow, deltaCol] = deltas[direction];
+    
+    // Clear the starting position
+    gridData[row][col] = 0;
+    
+    // Move the ball until it hits something
+    while (true) {
+        const nextRow = newRow + deltaRow;
+        const nextCol = newCol + deltaCol;
         
-        const buttonY = canvas.height - 50;
-        const buttonHeight = 30;
-        
-        // Check Previous button
-        if (x >= 50 && x <= 130 && y >= buttonY && y <= buttonY + buttonHeight && currentStep > 0) {
-            currentStep--;
-            parseGridState(currentLevel.solution_path[currentStep]);
-            drawJSONGrid();
+        // Check boundaries
+        if (nextRow < 0 || nextRow >= gridHeight || nextCol < 0 || nextCol >= gridWidth) {
+            break;
         }
         
-        // Check Next button
-        if (x >= 220 && x <= 300 && y >= buttonY && y <= buttonY + buttonHeight && 
-            currentStep < currentLevel.solution_path.length - 1) {
-            currentStep++;
-            parseGridState(currentLevel.solution_path[currentStep]);
-            drawJSONGrid();
+        // Check for obstacles (walls or other balls)
+        if (gridData[nextRow][nextCol] !== 0) {
+            break;
         }
-    });
+        
+        // Move to next position
+        newRow = nextRow;
+        newCol = nextCol;
+    }
+    
+    // Place the ball in its final position
+    gridData[newRow][newCol] = ballValue;
+    
+    // Check for win condition
+    checkWinCondition();
+    
+    // Redraw the grid
+    drawJSONGrid();
+    
+    console.log(`Moved ball from (${row},${col}) to (${newRow},${newCol}) direction: ${direction}`);
+}
+
+function drawDragPreview(currentX, currentY) {
+    // Optional: Add visual feedback during drag
+    // For now, we'll just redraw normally
+    drawJSONGrid();
+}
+
+// Check if player has achieved the winning configuration
+function checkWinCondition() {
+    if (!targetData || !gridData) return;
+    
+    const gridWidth = currentLevel.puzzle_info.grid_width;
+    const gridHeight = currentLevel.puzzle_info.grid_height;
+    
+    // Compare current grid state with target state
+    for (let row = 0; row < gridHeight; row++) {
+        for (let col = 0; col < gridWidth; col++) {
+            if (gridData[row][col] !== targetData[row][col]) {
+                return; // Not yet solved
+            }
+        }
+    }
+    
+    // Player won!
+    setTimeout(() => {
+        alert('🎉 Congratulations! You solved the puzzle! 🎉');
+        console.log('Player won the level!');
+    }, 100);
 }
 
 // Draw a simple test grid
