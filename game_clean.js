@@ -600,10 +600,27 @@ function setupEvents() {
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('click', handleButtonClick);
     
-    // Add touch support for mobile
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    // Simple mobile touch support
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        handleMouseDown({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+    }, { passive: false });
+    
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        handleMouseUp({});
+        // Handle button clicks
+        handleButtonClick({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+    }, { passive: false });
 }
 
 function handleButtonClick(e) {
@@ -880,43 +897,6 @@ function updateScoreDisplay() {
     const scoreElement = document.getElementById('score');
     if (scoreElement) {
         scoreElement.textContent = moveCount;
-    }
-}
-
-// Touch event handlers for mobile
-function handleTouchStart(e) {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const mouseEvent = new MouseEvent('mousedown', {
-        clientX: touch.clientX,
-        clientY: touch.clientY
-    });
-    canvas.dispatchEvent(mouseEvent);
-}
-
-function handleTouchMove(e) {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const mouseEvent = new MouseEvent('mousemove', {
-        clientX: touch.clientX,
-        clientY: touch.clientY
-    });
-    canvas.dispatchEvent(mouseEvent);
-}
-
-function handleTouchEnd(e) {
-    e.preventDefault();
-    const mouseEvent = new MouseEvent('mouseup', {});
-    canvas.dispatchEvent(mouseEvent);
-    
-    // Also trigger click for buttons
-    if (e.changedTouches.length > 0) {
-        const touch = e.changedTouches[0];
-        const clickEvent = new MouseEvent('click', {
-            clientX: touch.clientX,
-            clientY: touch.clientY
-        });
-        canvas.dispatchEvent(clickEvent);
     }
 }
 
