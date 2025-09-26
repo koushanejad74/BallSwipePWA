@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ball Swipe Game</title>
+    <meta name="description" content="A fun ball swiping game - Progressive Web App">
+    <meta name="theme-color" content="#2196F3">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ball Swipe">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>🏐 Ball Swipe Game</h1>
+            <div class="score">Score: <span id="score">0</span></div>
+        </header>
+        
+        <main>
+            <div id="game-container">
+                <canvas id="game-canvas" width="350" height="500"></canvas>
+                <div id="game-over" class="hidden">
+                    <h2>Game Over!</h2>
+                    <p>Final Score: <span id="final-score">0</span></p>
+                    <button id="restart-btn" class="btn">Play Again</button>
+                </div>
+            </div>
+        </main>
+        
+        <div class="controls">
+            <button id="start-btn" class="btn primary">Start Game</button>
+            <button id="pause-btn" class="btn" disabled>Pause</button>
+        </div>
+        
+        <div class="instructions">
+            <h3>How to Play:</h3>
+            <p>Swipe or drag to move the paddle and keep the ball bouncing!</p>
+        </div>
+    </div>
+    
+    <!-- Install PWA Banner -->
+    <div id="install-banner" class="install-banner hidden">
+        <div class="banner-content">
+            <span>📱 Install this app for the best experience!</span>
+            <button id="install-btn" class="btn">Install</button>
+            <button id="dismiss-btn" class="btn-close">✕</button>
+        </div>
+    </div>
+    
+    <script src="game_test.js"></script>
+    <script src="pwa.js"></script>
+</body>
+</html>
