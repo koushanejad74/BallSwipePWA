@@ -425,17 +425,17 @@ function drawGameButtons(startX, buttonY, gridWidth) {
     ctx.fillText('Levels', startX + buttonWidth + 10 + buttonWidth/2, buttonY + buttonHeight/2);
 }
 
-// Draw instructions below buttons - responsive
+// Draw instructions below buttons - responsive with expanded content
 function drawInstructions(startX, instructionsY, gridWidth) {
     // Make box wider than the grid - 110% of grid width and center it
     const boxWidth = gridWidth * 1.1;
     const boxStartX = startX - (boxWidth - gridWidth) / 2; // Center the wider box
-    const boxHeight = Math.max(60, Math.min(90, canvas.height / 8)); // Responsive height
+    const boxHeight = Math.max(120, Math.min(160, canvas.height / 5)); // Expanded height
     const cornerRadius = 8;
     
     // Responsive font sizes
     const titleFontSize = Math.max(14, Math.min(20, canvas.width / 20));
-    const bodyFontSize = Math.max(11, Math.min(16, canvas.width / 25));
+    const bodyFontSize = Math.max(10, Math.min(14, canvas.width / 28));
     
     ctx.fillStyle = '#8e44ad'; // Purple background
     drawRoundedRect(boxStartX, instructionsY, boxWidth, boxHeight, cornerRadius);
@@ -452,14 +452,25 @@ function drawInstructions(startX, instructionsY, gridWidth) {
     ctx.font = `bold ${titleFontSize}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('How to Play:', boxStartX + boxWidth/2, instructionsY + 10);
+    ctx.fillText('How to Play:', boxStartX + boxWidth/2, instructionsY + 12);
     
     // Multi-line instruction text
     ctx.font = `${bodyFontSize}px Arial`;
     ctx.fillStyle = '#f8f9fa'; // Light color for body text
-    const lineSpacing = bodyFontSize + 4;
-    ctx.fillText('Drag the colored balls to move them', boxStartX + boxWidth/2, instructionsY + 25 + titleFontSize);
-    ctx.fillText('until they reach their target circles!', boxStartX + boxWidth/2, instructionsY + 25 + titleFontSize + lineSpacing);
+    const lineSpacing = bodyFontSize + 3;
+    let currentY = instructionsY + 32 + titleFontSize;
+    
+    const instructions = [
+        '🎯 Drag colored balls to move them',
+        '🔄 Balls slide until they hit an obstacle',
+        '⭕ Get each ball to its target circle',
+        '🏆 Complete all targets to win!',
+        '🎮 Use "Restart Level" or "Levels" buttons'
+    ];
+    
+    instructions.forEach((instruction, index) => {
+        ctx.fillText(instruction, boxStartX + boxWidth/2, currentY + (index * lineSpacing));
+    });
 }
 
 // Draw simple grid lines
@@ -815,27 +826,26 @@ function handleButtonClick(e) {
     
     if (!currentLevel || !gridData) return;
     
-    const width = currentLevel.puzzle_info.grid_width;
-    const height = currentLevel.puzzle_info.grid_height;
-    const cellSize = Math.min(80, (canvas.width - 40) / width, (canvas.height - 180) / height);
-    const startX = (canvas.width - width * cellSize) / 2;
-    const startY = 80;
+    // Check game buttons using consistent grid layout
+    const layout = getCurrentGridLayout();
+    if (!layout) return;
     
-    // Check button clicks
-    const buttonY = startY + height * cellSize + 20;
-    const buttonWidth = (width * cellSize - 10) / 2;
-    const buttonHeight = 35;
+    const buttonY = layout.startY + layout.height * layout.cellSize + 20;
+    const buttonWidth = (layout.width * layout.cellSize - 10) / 2;
+    const buttonHeight = Math.max(30, Math.min(40, canvas.height / 15)); // Responsive height
     
     // Restart button
-    if (x >= startX && x <= startX + buttonWidth && 
+    if (x >= layout.startX && x <= layout.startX + buttonWidth && 
         y >= buttonY && y <= buttonY + buttonHeight) {
+        console.log('Restart button clicked');
         loadLevel(currentLevelNumber);
         return;
     }
     
     // Levels button
-    if (x >= startX + buttonWidth + 10 && x <= startX + width * cellSize && 
+    if (x >= layout.startX + buttonWidth + 10 && x <= layout.startX + layout.width * layout.cellSize && 
         y >= buttonY && y <= buttonY + buttonHeight) {
+        console.log('Levels button clicked');
         showLevelSelector();
         return;
     }
