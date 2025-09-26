@@ -264,7 +264,7 @@ function drawLevelCompletePopup() {
     const buttonsY = popupY + popupHeight - 50;
     
     // Next Level button (if not last level)
-    if (currentLevelNumber < 6) {
+    if (currentLevelNumber < 20) {
         const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
         ctx.fillStyle = '#3498db';
         drawRoundedRect(nextButtonX, buttonsY, buttonWidth, buttonHeight, 8);
@@ -277,7 +277,7 @@ function drawLevelCompletePopup() {
     }
     
     // Replay button
-    const replayButtonX = currentLevelNumber < 6 ? 
+    const replayButtonX = currentLevelNumber < 20 ? 
         popupX + popupWidth/2 + 5 : 
         popupX + (popupWidth - buttonWidth) / 2;
     
@@ -473,20 +473,21 @@ function showLevelSelector() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Select Level', canvas.width / 2, 80);
+    ctx.fillText('Select Level', canvas.width / 2, 50);
     
     // Draw level buttons
-    const levelsPerRow = 3;
-    const buttonSize = 60;
-    const cornerRadius = 10;
-    const startX = (canvas.width - levelsPerRow * (buttonSize + 10)) / 2;
-    const startY = 120;
+    const levelsPerRow = 5; // Show 5 levels per row
+    const totalLevels = 20;
+    const buttonSize = 50; // Smaller buttons to fit more
+    const cornerRadius = 8;
+    const startX = (canvas.width - levelsPerRow * (buttonSize + 8)) / 2;
+    const startY = 80; // Start higher up
     
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= totalLevels; i++) {
         const row = Math.floor((i - 1) / levelsPerRow);
         const col = (i - 1) % levelsPerRow;
-        const x = startX + col * (buttonSize + 10);
-        const y = startY + row * (buttonSize + 10);
+        const x = startX + col * (buttonSize + 8);
+        const y = startY + row * (buttonSize + 8);
         
         // Button background
         ctx.fillStyle = i === currentLevelNumber ? '#4CAF50' : '#2196F3';
@@ -495,20 +496,21 @@ function showLevelSelector() {
         
         // Level number
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 20px Arial';
+        ctx.font = 'bold 16px Arial'; // Smaller font for more levels
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(i.toString(), x + buttonSize/2, y + buttonSize/2);
     }
     
-    // Close button
+    // Close button - positioned at the bottom
+    const closeButtonY = startY + 4 * (buttonSize + 8) + 15;
     ctx.fillStyle = '#f44336';
-    drawRoundedRect(canvas.width/2 - 40, startY + 140, 80, 35, 8);
+    drawRoundedRect(canvas.width/2 - 40, closeButtonY, 80, 35, 8);
     ctx.fill();
     
     ctx.fillStyle = '#fff';
     ctx.font = '14px Arial';
-    ctx.fillText('Close', canvas.width/2, startY + 157);
+    ctx.fillText('Close', canvas.width/2, closeButtonY + 17);
     
     // Set flag for level selector mode
     window.levelSelectorActive = true;
@@ -516,17 +518,18 @@ function showLevelSelector() {
 
 // Handle level selector clicks
 function handleLevelSelectorClick(x, y) {
-    const levelsPerRow = 3;
-    const buttonSize = 60;
-    const startX = (canvas.width - levelsPerRow * (buttonSize + 10)) / 2;
-    const startY = 120;
+    const levelsPerRow = 5;
+    const totalLevels = 20;
+    const buttonSize = 50;
+    const startX = (canvas.width - levelsPerRow * (buttonSize + 8)) / 2;
+    const startY = 80; // Match the updated startY
     
     // Check level buttons
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= totalLevels; i++) {
         const row = Math.floor((i - 1) / levelsPerRow);
         const col = (i - 1) % levelsPerRow;
-        const btnX = startX + col * (buttonSize + 10);
-        const btnY = startY + row * (buttonSize + 10);
+        const btnX = startX + col * (buttonSize + 8);
+        const btnY = startY + row * (buttonSize + 8);
         
         if (x >= btnX && x <= btnX + buttonSize && 
             y >= btnY && y <= btnY + buttonSize) {
@@ -538,8 +541,9 @@ function handleLevelSelectorClick(x, y) {
     }
     
     // Check close button
+    const closeButtonY = startY + 4 * (buttonSize + 8) + 15;
     if (x >= canvas.width/2 - 40 && x <= canvas.width/2 + 40 && 
-        y >= startY + 140 && y <= startY + 175) {
+        y >= closeButtonY && y <= closeButtonY + 35) {
         window.levelSelectorActive = false;
         drawGame();
     }
@@ -637,7 +641,7 @@ function handleButtonClick(e) {
         const buttonsY = popupY + popupHeight - 50;
         
         // Next Level button (if not last level)
-        if (currentLevelNumber < 6) {
+        if (currentLevelNumber < 20) {
             const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
             if (x >= nextButtonX && x <= nextButtonX + buttonWidth && 
                 y >= buttonsY && y <= buttonsY + buttonHeight) {
@@ -649,7 +653,7 @@ function handleButtonClick(e) {
         }
         
         // Replay button
-        const replayButtonX = currentLevelNumber < 6 ? 
+        const replayButtonX = currentLevelNumber < 20 ? 
             popupX + popupWidth/2 + 5 : 
             popupX + (popupWidth - buttonWidth) / 2;
         
