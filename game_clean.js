@@ -36,9 +36,19 @@ async function loadLevel(levelNumber) {
     try {
         const levelFileName = `Level${levelNumber.toString().padStart(3, '0')}.json`;
         console.log(`Loading ${levelFileName}...`);
+        console.log('Window location:', window.location.href);
         
-        const response = await fetch(`levels/${levelFileName}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // Use absolute path from root to ensure it works on mobile
+        const response = await fetch(`./levels/${levelFileName}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('Fetch response status:', response.status);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         
         currentLevel = await response.json();
         currentLevelNumber = levelNumber;
@@ -62,8 +72,25 @@ async function loadLevel(levelNumber) {
         
     } catch (error) {
         console.error('Failed to load level:', error);
-        // Show test grid as fallback
-        drawTestGrid();
+        console.error('Level file path:', `./levels/${levelFileName}`);
+        console.error('Current URL:', window.location.href);
+        
+        // Show an error message instead of test grid
+        ctx.fillStyle = '#f5f5f5';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#333';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Loading Level...', canvas.width / 2, canvas.height / 2);
+        ctx.font = '14px Arial';
+        ctx.fillText('Please wait or refresh if stuck', canvas.width / 2, canvas.height / 2 + 30);
+        
+        // Retry after a short delay
+        setTimeout(() => {
+            console.log('Retrying level load...');
+            loadLevel(levelNumber);
+        }, 2000);
     }
 }
 
