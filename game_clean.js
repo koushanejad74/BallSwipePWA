@@ -334,12 +334,23 @@ function drawLevelCompletePopup() {
     ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('🎉 Congratulations! 🎉', popupX + popupWidth/2, popupY + 20);
+    
+    if (currentLevelNumber === 100) {
+        ctx.fillText('� GAME COMPLETE! 🏆', popupX + popupWidth/2, popupY + 20);
+    } else {
+        ctx.fillText('�🎉 Congratulations! 🎉', popupX + popupWidth/2, popupY + 20);
+    }
     
     // Level completed text
     ctx.fillStyle = '#2c3e50';
     ctx.font = '18px Arial';
-    ctx.fillText(`Level ${currentLevelNumber} Complete!`, popupX + popupWidth/2, popupY + 55);
+    
+    if (currentLevelNumber === 100) {
+        ctx.fillText('You completed ALL 100 levels!', popupX + popupWidth/2, popupY + 55);
+        ctx.fillText('🎮 Master Puzzle Solver! 🎮', popupX + popupWidth/2, popupY + 78);
+    } else {
+        ctx.fillText(`Level ${currentLevelNumber} Complete!`, popupX + popupWidth/2, popupY + 55);
+    }
     
     // Moves taken text
     ctx.fillStyle = '#7f8c8d';
@@ -348,7 +359,9 @@ function drawLevelCompletePopup() {
     const movesText = completionMoves === minMoves ? 
         `Perfect! Solved in ${completionMoves} moves! ⭐` : 
         `You solved it in ${completionMoves} moves`;
-    ctx.fillText(movesText, popupX + popupWidth/2, popupY + 80);
+    
+    const movesY = currentLevelNumber === 100 ? popupY + 105 : popupY + 80;
+    ctx.fillText(movesText, popupX + popupWidth/2, movesY);
     
     // Buttons
     const buttonWidth = 100;
@@ -356,7 +369,7 @@ function drawLevelCompletePopup() {
     const buttonsY = popupY + popupHeight - 50;
     
     // Next Level button (if not last level)
-    if (currentLevelNumber < 20) {
+    if (currentLevelNumber < 100) {
         const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
         ctx.fillStyle = '#3498db';
         drawRoundedRect(nextButtonX, buttonsY, buttonWidth, buttonHeight, 8);
@@ -369,7 +382,7 @@ function drawLevelCompletePopup() {
     }
     
     // Replay button
-    const replayButtonX = currentLevelNumber < 20 ? 
+    const replayButtonX = currentLevelNumber < 100 ? 
         popupX + popupWidth/2 + 5 : 
         popupX + (popupWidth - buttonWidth) / 2;
     
@@ -582,18 +595,26 @@ function showLevelSelector() {
     ctx.fillText('Select Level', canvas.width / 2, 50);
     
     // Draw level buttons
-    const levelsPerRow = 5; // Show 5 levels per row
-    const totalLevels = 20;
-    const buttonSize = 50; // Smaller buttons to fit more
-    const cornerRadius = 8;
-    const startX = (canvas.width - levelsPerRow * (buttonSize + 8)) / 2;
-    const startY = 80; // Start higher up
+    const levelsPerRow = 10; // Show 10 levels per row for better space usage
+    const totalLevels = 100;
+    const buttonSize = Math.min(35, (canvas.width - 60) / levelsPerRow); // Responsive button size
+    const cornerRadius = 6;
+    const spacing = 4;
+    const totalWidth = levelsPerRow * (buttonSize + spacing) - spacing;
+    const startX = (canvas.width - totalWidth) / 2;
+    const startY = 70; // Start higher up to fit more rows
     
     for (let i = 1; i <= totalLevels; i++) {
         const row = Math.floor((i - 1) / levelsPerRow);
         const col = (i - 1) % levelsPerRow;
-        const x = startX + col * (buttonSize + 8);
-        const y = startY + row * (buttonSize + 8);
+        
+        const x = startX + col * (buttonSize + spacing);
+        const y = startY + row * (buttonSize + spacing);
+        
+        // Stop drawing if we run out of vertical space
+        if (y + buttonSize > canvas.height - 20) {
+            break;
+        }
         
         // Button background
         ctx.fillStyle = i === currentLevelNumber ? '#4CAF50' : '#2196F3';
@@ -602,21 +623,28 @@ function showLevelSelector() {
         
         // Level number
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px Arial'; // Smaller font for more levels
+        const fontSize = Math.max(10, Math.min(14, buttonSize / 3));
+        ctx.font = `bold ${fontSize}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(i.toString(), x + buttonSize/2, y + buttonSize/2);
     }
     
-    // Close button - positioned at the bottom
-    const closeButtonY = startY + 4 * (buttonSize + 8) + 15;
+    // Add instruction text for more levels
+    ctx.fillStyle = '#666';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('100 levels available! Select any level to play.', canvas.width / 2, startY - 15);
+    
+    // Close button - positioned at the bottom with more space
+    const closeButtonY = Math.min(startY + 10 * (buttonSize + spacing) + 20, canvas.height - 60);
     ctx.fillStyle = '#f44336';
     drawRoundedRect(canvas.width/2 - 40, closeButtonY, 80, 35, 8);
     ctx.fill();
     
     ctx.fillStyle = '#fff';
     ctx.font = '14px Arial';
-    ctx.fillText('Close', canvas.width/2, closeButtonY + 17);
+    ctx.fillText('Close', canvas.width/2, closeButtonY + 22);
     
     // Set flag for level selector mode
     window.levelSelectorActive = true;
@@ -624,18 +652,26 @@ function showLevelSelector() {
 
 // Handle level selector clicks
 function handleLevelSelectorClick(x, y) {
-    const levelsPerRow = 5;
-    const totalLevels = 20;
-    const buttonSize = 50;
-    const startX = (canvas.width - levelsPerRow * (buttonSize + 8)) / 2;
-    const startY = 80; // Match the updated startY
+    const levelsPerRow = 10;
+    const totalLevels = 100;
+    const buttonSize = Math.min(35, (canvas.width - 60) / levelsPerRow);
+    const spacing = 4;
+    const totalWidth = levelsPerRow * (buttonSize + spacing) - spacing;
+    const startX = (canvas.width - totalWidth) / 2;
+    const startY = 70; // Match the updated startY
     
     // Check level buttons
     for (let i = 1; i <= totalLevels; i++) {
         const row = Math.floor((i - 1) / levelsPerRow);
         const col = (i - 1) % levelsPerRow;
-        const btnX = startX + col * (buttonSize + 8);
-        const btnY = startY + row * (buttonSize + 8);
+        
+        const btnX = startX + col * (buttonSize + spacing);
+        const btnY = startY + row * (buttonSize + spacing);
+        
+        // Stop checking if we run out of vertical space
+        if (btnY + buttonSize > canvas.height - 20) {
+            break;
+        }
         
         if (x >= btnX && x <= btnX + buttonSize && 
             y >= btnY && y <= btnY + buttonSize) {
@@ -647,7 +683,7 @@ function handleLevelSelectorClick(x, y) {
     }
     
     // Check close button
-    const closeButtonY = startY + 4 * (buttonSize + 8) + 15;
+    const closeButtonY = Math.min(startY + 10 * (buttonSize + spacing) + 20, canvas.height - 60);
     if (x >= canvas.width/2 - 40 && x <= canvas.width/2 + 40 && 
         y >= closeButtonY && y <= closeButtonY + 35) {
         window.levelSelectorActive = false;
