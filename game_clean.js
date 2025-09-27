@@ -1338,11 +1338,14 @@ function showLevelSelector() {
     const navButtonWidth = 80;
     const navButtonHeight = 35;
     const navButtonY = startY + 5 * (buttonSize + spacing) + 20;
+    const buttonSpacing = 5;
+    const totalButtonsWidth = navButtonWidth * 3 + buttonSpacing * 2; // 3 buttons with spacing
+    const startButtonX = (canvas.width - totalButtonsWidth) / 2;
     
     // Previous button
     if (currentLevelPage > 0) {
         ctx.fillStyle = '#9E9E9E';
-        const prevX = canvas.width / 2 - navButtonWidth - 10;
+        const prevX = startButtonX;
         drawRoundedRect(prevX, navButtonY, navButtonWidth, navButtonHeight, 8);
         ctx.fill();
         
@@ -1353,10 +1356,22 @@ function showLevelSelector() {
         ctx.fillText('\u25c0 Prev', prevX + navButtonWidth/2, navButtonY + navButtonHeight/2);
     }
     
+    // Challenge button (always visible in the middle)
+    const challengeX = startButtonX + navButtonWidth + buttonSpacing;
+    ctx.fillStyle = '#FF5722'; // Orange color to stand out
+    drawRoundedRect(challengeX, navButtonY, navButtonWidth, navButtonHeight, 8);
+    ctx.fill();
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Challenge', challengeX + navButtonWidth/2, navButtonY + navButtonHeight/2);
+    
     // Next button
     if (currentLevelPage < totalPages - 1) {
         ctx.fillStyle = '#9E9E9E';
-        const nextX = canvas.width / 2 + 10;
+        const nextX = startButtonX + navButtonWidth * 2 + buttonSpacing * 2;
         drawRoundedRect(nextX, navButtonY, navButtonWidth, navButtonHeight, 8);
         ctx.fill();
         
@@ -1366,22 +1381,6 @@ function showLevelSelector() {
         ctx.textBaseline = 'middle';
         ctx.fillText('Next \u25b6', nextX + navButtonWidth/2, navButtonY + navButtonHeight/2);
     }
-    
-    // Challenging Level button at the bottom
-    const challengingButtonWidth = 180;
-    const challengingButtonHeight = 40;
-    const challengingButtonX = (canvas.width - challengingButtonWidth) / 2;
-    const challengingButtonY = navButtonY + navButtonHeight + 25;
-    
-    ctx.fillStyle = '#FF5722'; // Orange color to stand out
-    drawRoundedRect(challengingButtonX, challengingButtonY, challengingButtonWidth, challengingButtonHeight, 8);
-    ctx.fill();
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Challenging Level', challengingButtonX + challengingButtonWidth/2, challengingButtonY + challengingButtonHeight/2);
     
     // Set flag for level selector mode
     window.levelSelectorActive = true;
@@ -1634,11 +1633,14 @@ function handleLevelSelectorClick(x, y) {
     const navButtonWidth = 80;
     const navButtonHeight = 35;
     const navButtonY = startY + 5 * (buttonSize + spacing) + 20;
+    const buttonSpacing = 5;
+    const totalButtonsWidth = navButtonWidth * 3 + buttonSpacing * 2;
+    const startButtonX = (canvas.width - totalButtonsWidth) / 2;
     const totalPages = Math.ceil(100 / levelsPerPage);
     
     // Previous button
     if (currentLevelPage > 0) {
-        const prevX = canvas.width / 2 - navButtonWidth - 10;
+        const prevX = startButtonX;
         if (x >= prevX && x <= prevX + navButtonWidth && 
             y >= navButtonY && y <= navButtonY + navButtonHeight) {
             if (!levelSelectorNavigating) {
@@ -1654,9 +1656,20 @@ function handleLevelSelectorClick(x, y) {
         }
     }
     
+    // Challenge button (always check, positioned in the middle)
+    const challengeX = startButtonX + navButtonWidth + buttonSpacing;
+    if (x >= challengeX && x <= challengeX + navButtonWidth && 
+        y >= navButtonY && y <= navButtonY + navButtonHeight) {
+        console.log('Challenge button clicked');
+        window.levelSelectorActive = false;
+        levelSelectorNavigating = false;
+        loadRandomChallengingLevel();
+        return;
+    }
+    
     // Next button
     if (currentLevelPage < totalPages - 1) {
-        const nextX = canvas.width / 2 + 10;
+        const nextX = startButtonX + navButtonWidth * 2 + buttonSpacing * 2;
         if (x >= nextX && x <= nextX + navButtonWidth && 
             y >= navButtonY && y <= navButtonY + navButtonHeight) {
             if (!levelSelectorNavigating) {
@@ -1670,21 +1683,6 @@ function handleLevelSelectorClick(x, y) {
             }
             return;
         }
-    }
-    
-    // Challenging Level button
-    const challengingButtonWidth = 180;
-    const challengingButtonHeight = 40;
-    const challengingButtonX = (canvas.width - challengingButtonWidth) / 2;
-    const challengingButtonY = navButtonY + navButtonHeight + 25;
-    
-    if (x >= challengingButtonX && x <= challengingButtonX + challengingButtonWidth && 
-        y >= challengingButtonY && y <= challengingButtonY + challengingButtonHeight) {
-        console.log('Challenging Level button clicked');
-        window.levelSelectorActive = false;
-        levelSelectorNavigating = false;
-        loadRandomChallengingLevel();
-        return;
     }
     
     // Check close button - top right corner
