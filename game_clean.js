@@ -606,7 +606,7 @@ function drawCellContent(x, y, size, value, targetValue, row, col) {
     if (targetValue >= 2 && targetValue <= 4) {
         const centerX = x + size / 2;
         const centerY = y + size / 2;
-        const radius = Math.min(size * 0.35, 22);
+        const radius = Math.min(size * 0.42, 26); // Increased from 0.35 to 0.42 for white border
         
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -675,14 +675,40 @@ function drawCellContent(x, y, size, value, targetValue, row, col) {
 
 // Show level selector with pagination
 function showLevelSelector() {
-    // Create a simple level selector overlay with pagination
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    // Create a simple level selector overlay with solid background
+    ctx.fillStyle = '#2c2c2c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('Select Level', canvas.width / 2, 40);
+    
+    // Close button - top right corner with close icon
+    const closeButtonSize = 30;
+    const closeButtonX = canvas.width - closeButtonSize - 15;
+    const closeButtonY = 15;
+    
+    // Draw circle background
+    ctx.fillStyle = '#f44336';
+    ctx.beginPath();
+    ctx.arc(closeButtonX + closeButtonSize/2, closeButtonY + closeButtonSize/2, closeButtonSize/2, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Draw X (cross) inside
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const crossSize = closeButtonSize * 0.4;
+    const centerX = closeButtonX + closeButtonSize/2;
+    const centerY = closeButtonY + closeButtonSize/2;
+    
+    ctx.beginPath();
+    ctx.moveTo(centerX - crossSize/2, centerY - crossSize/2);
+    ctx.lineTo(centerX + crossSize/2, centerY + crossSize/2);
+    ctx.moveTo(centerX + crossSize/2, centerY - crossSize/2);
+    ctx.lineTo(centerX - crossSize/2, centerY + crossSize/2);
+    ctx.stroke();
     
     // Calculate pagination
     const levelsPerPage = 25;
@@ -758,16 +784,6 @@ function showLevelSelector() {
         ctx.fillText('Next \u25b6', nextX + navButtonWidth/2, navButtonY + navButtonHeight/2);
     }
     
-    // Close button - moved up closer to navigation buttons
-    const closeButtonY = navButtonY + 45;
-    ctx.fillStyle = '#f44336';
-    drawRoundedRect(canvas.width/2 - 40, closeButtonY, 80, 35, 8);
-    ctx.fill();
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px Arial';
-    ctx.fillText('Close', canvas.width/2, closeButtonY + 22);
-    
     // Set flag for level selector mode
     window.levelSelectorActive = true;
 }
@@ -831,10 +847,13 @@ function handleLevelSelectorClick(x, y) {
         }
     }
     
-    // Check close button - updated position
-    const closeButtonY = navButtonY + 45;
-    if (x >= canvas.width/2 - 40 && x <= canvas.width/2 + 40 && 
-        y >= closeButtonY && y <= closeButtonY + 35) {
+    // Check close button - top right corner
+    const closeButtonSize = 30;
+    const closeButtonX = canvas.width - closeButtonSize - 15;
+    const closeButtonY = 15;
+    
+    if (x >= closeButtonX && x <= closeButtonX + closeButtonSize && 
+        y >= closeButtonY && y <= closeButtonY + closeButtonSize) {
         window.levelSelectorActive = false;
         drawGame();
     }
