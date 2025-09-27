@@ -18,6 +18,7 @@ let completionMoves = 0; // Store moves taken when level completed
 // Level selector pagination
 let currentLevelPage = 0; // Current page (0-based)
 let levelSelectorNavigating = false; // Prevent rapid navigation clicks
+let challengeModeActive = false; // Track if we're in challenge mode
 
 // Hint system
 let hintPopupActive = false; // Track if hint popup is shown
@@ -114,8 +115,65 @@ function resizeCanvas() {
     console.log(`Canvas resized to: ${canvasWidth}x${canvasHeight}`);
 }
 
-// Load level from JSON
+// Load a random challenging level
+function loadRandomChallengingLevel() {
+    const randomLevelNumber = Math.floor(Math.random() * 100) + 1;
+    const paddedNumber = randomLevelNumber.toString().padStart(3, '0');
+    const levelPath = `RandomLevels/Level${paddedNumber}.json`;
+    
+    console.log(`Loading random challenging level: ${levelPath}`);
+    
+    fetch(levelPath)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to load level: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            currentLevel = data;
+            currentLevelNumber = randomLevelNumber; // For display purposes
+            challengeModeActive = true; // Enable challenge mode
+            
+            // Reset game state
+            moveCount = 0;
+            levelStartPopupActive = true;
+            levelCompletePopupActive = false;
+            helpPopupActive = false;
+            hintPopupActive = false;
+            bonusHintPopupActive = false;
+            noHintsPopupActive = false;
+            pendingBonusHint = false;
+            animatingBall = null;
+            
+            // Clear hint mode if active
+            if (hintModeActive) {
+                exitHintMode();
+            }
+            
+            // Parse the initial state
+            if (currentLevel.solution_path && currentLevel.solution_path.length > 0) {
+                parseGridState(currentLevel.solution_path[0]);
+            }
+            
+            // Parse target state from the last step
+            if (currentLevel.solution_path && currentLevel.solution_path.length > 1) {
+                parseTargetState(currentLevel.solution_path[currentLevel.solution_path.length - 1]);
+            }
+            
+            drawGame();
+        })
+        .catch(error => {
+            console.error('Error loading random challenging level:', error);
+            // Fallback to a regular level if random level fails
+            challengeModeActive = false;
+            loadLevel(1);
+        });
+}
+
+// Load level (modified to handle both regular and challenge modes) from JSON
 async function loadLevel(levelNumber) {
+    challengeModeActive = false; // Exit challenge mode when loading regular level
     try {
         const levelFileName = `Level${levelNumber.toString().padStart(3, '0')}.json`;
         console.log(`Loading ${levelFileName}...`);
@@ -414,8 +472,8 @@ function drawLevelCompletePopup() {
     const buttonHeight = 35;
     const buttonsY = popupY + popupHeight - 50;
     
-    // Next Level button (if not last level)
-    if (currentLevelNumber < 100) {
+    // Next Level button (if not last level or in challenge mode)
+    if (currentLevelNumber < 100 || challengeModeActive) {
         const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
         ctx.fillStyle = '#3498db';
         drawRoundedRect(nextButtonX, buttonsY, buttonWidth, buttonHeight, 8);
@@ -424,11 +482,12 @@ function drawLevelCompletePopup() {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 16px Arial';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Next Level', nextButtonX + buttonWidth/2, buttonsY + buttonHeight/2);
+        const buttonText = challengeModeActive ? 'Next Challenge' : 'Next Level';
+        ctx.fillText(buttonText, nextButtonX + buttonWidth/2, buttonsY + buttonHeight/2);
     }
     
     // Replay button
-    const replayButtonX = currentLevelNumber < 100 ? 
+    const replayButtonX = (currentLevelNumber < 100 || challengeModeActive) ? 
         popupX + popupWidth/2 + 5 : 
         popupX + (popupWidth - buttonWidth) / 2;
     
@@ -1308,6 +1367,22 @@ function showLevelSelector() {
         ctx.fillText('Next \u25b6', nextX + navButtonWidth/2, navButtonY + navButtonHeight/2);
     }
     
+    // Challenging Level button at the bottom
+    const challengingButtonWidth = 180;
+    const challengingButtonHeight = 40;
+    const challengingButtonX = (canvas.width - challengingButtonWidth) / 2;
+    const challengingButtonY = navButtonY + navButtonHeight + 25;
+    
+    ctx.fillStyle = '#FF5722'; // Orange color to stand out
+    drawRoundedRect(challengingButtonX, challengingButtonY, challengingButtonWidth, challengingButtonHeight, 8);
+    ctx.fill();
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Challenging Level', challengingButtonX + challengingButtonWidth/2, challengingButtonY + challengingButtonHeight/2);
+    
     // Set flag for level selector mode
     window.levelSelectorActive = true;
 }
@@ -1597,6 +1672,21 @@ function handleLevelSelectorClick(x, y) {
         }
     }
     
+    // Challenging Level button
+    const challengingButtonWidth = 180;
+    const challengingButtonHeight = 40;
+    const challengingButtonX = (canvas.width - challengingButtonWidth) / 2;
+    const challengingButtonY = navButtonY + navButtonHeight + 25;
+    
+    if (x >= challengingButtonX && x <= challengingButtonX + challengingButtonWidth && 
+        y >= challengingButtonY && y <= challengingButtonY + challengingButtonHeight) {
+        console.log('Challenging Level button clicked');
+        window.levelSelectorActive = false;
+        levelSelectorNavigating = false;
+        loadRandomChallengingLevel();
+        return;
+    }
+    
     // Check close button - top right corner
     const closeButtonSize = 30;
     const closeButtonX = canvas.width - closeButtonSize - 15;
@@ -1751,14 +1841,20 @@ function handleButtonClick(e) {
         if (x >= popupX && x <= popupX + popupWidth && 
             y >= popupY && y <= popupY + popupHeight) {
             
-            // Next Level button (if not last level)
-            if (currentLevelNumber < 100) {
+            // Next Level button (if not last level or in challenge mode)
+            if (currentLevelNumber < 100 || challengeModeActive) {
                 const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
                 if (x >= nextButtonX && x <= nextButtonX + buttonWidth && 
                     y >= buttonsY && y <= buttonsY + buttonHeight) {
                     levelCompletePopupActive = false;
-                    currentLevelNumber++;
-                    loadLevel(currentLevelNumber);
+                    if (challengeModeActive) {
+                        // Load another random challenging level
+                        loadRandomChallengingLevel();
+                    } else {
+                        // Regular progression to next level
+                        currentLevelNumber++;
+                        loadLevel(currentLevelNumber);
+                    }
                     // Reset pending bonus hint when moving to next level
                     pendingBonusHint = false;
                     return;
@@ -1773,7 +1869,13 @@ function handleButtonClick(e) {
             if (x >= replayButtonX && x <= replayButtonX + buttonWidth && 
                 y >= buttonsY && y <= buttonsY + buttonHeight) {
                 levelCompletePopupActive = false;
-                loadLevel(currentLevelNumber);
+                if (challengeModeActive) {
+                    // Replay the same random level
+                    loadRandomChallengingLevel();
+                } else {
+                    // Replay the regular level
+                    loadLevel(currentLevelNumber);
+                }
                 // Reset pending bonus hint when replaying level
                 pendingBonusHint = false;
                 return;
