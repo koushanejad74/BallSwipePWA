@@ -10,6 +10,9 @@ let moveCount = 0; // Track number of moves made
 let levelStartPopupActive = false; // Track if level start popup is shown
 let levelCompletePopupActive = false; // Track if level complete popup is shown
 let helpPopupActive = false; // Track if help popup is shown
+let bonusHintPopupActive = false; // Track if bonus hint popup is shown
+let noHintsPopupActive = false; // Track if no hints popup is shown
+let pendingBonusHint = false; // Track if bonus hint popup should show after level completion
 let completionMoves = 0; // Store moves taken when level completed
 
 // Level selector pagination
@@ -20,6 +23,8 @@ let hintPopupActive = false; // Track if hint popup is shown
 let currentHintStep = 0; // Current step in the hint sequence
 let hintModeActive = false; // Track if we're in hint mode
 let originalGameState = null; // Store original state to restore
+let availableHints = 3; // Number of hints available to user
+let puzzlesSolved = 0; // Track completed puzzles for hint rewards
 
 // Animation variables
 let animatingBall = null; // Currently animating ball
@@ -143,10 +148,16 @@ async function loadLevel(levelNumber) {
         hintPopupActive = false;
         hintModeActive = false;
         originalGameState = null;
+        
+        // Load hint progress from localStorage
+        loadHintProgress();
         hintPopupActive = false;
         
         // Show level start popup
         levelStartPopupActive = true;
+        bonusHintPopupActive = false;
+        noHintsPopupActive = false;
+        pendingBonusHint = false;
         
         console.log('Level loaded successfully');
         
@@ -261,6 +272,16 @@ function drawGame() {
     // Draw level complete popup if active
     if (levelCompletePopupActive) {
         drawLevelCompletePopup();
+    }
+    
+    // Draw bonus hint popup if active
+    if (bonusHintPopupActive) {
+        drawBonusHintPopup();
+    }
+    
+    // Draw no hints popup if active
+    if (noHintsPopupActive) {
+        drawNoHintsPopup();
     }
     
     // Draw help popup if active
@@ -434,6 +455,123 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.closePath();
 }
 
+// Draw bonus hint popup
+function drawBonusHintPopup() {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Popup box
+    const popupWidth = 300;
+    const popupHeight = 180;
+    const popupX = (canvas.width - popupWidth) / 2;
+    const popupY = (canvas.height - popupHeight) / 2;
+    const cornerRadius = 12;
+    
+    // Background
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.fill();
+    
+    // Border
+    ctx.strokeStyle = '#27ae60';
+    ctx.lineWidth = 3;
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.stroke();
+    
+    // Celebration icon and title
+    ctx.fillStyle = '#27ae60';
+    ctx.font = 'bold 28px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🎉', popupX + popupWidth/2, popupY + 40);
+    
+    ctx.font = 'bold 22px Arial';
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillText('Bonus Hint Earned!', popupX + popupWidth/2, popupY + 75);
+    
+    // Progress info
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fillText(`Puzzles solved: ${puzzlesSolved}`, popupX + popupWidth/2, popupY + 100);
+    ctx.fillText(`Total hints: ${availableHints}`, popupX + popupWidth/2, popupY + 120);
+    
+    // Continue button
+    const buttonWidth = 120;
+    const buttonHeight = 35;
+    const buttonX = popupX + (popupWidth - buttonWidth) / 2;
+    const buttonY = popupY + popupHeight - 50;
+    
+    ctx.fillStyle = '#27ae60';
+    drawRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 8);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Awesome!', buttonX + buttonWidth/2, buttonY + buttonHeight/2);
+}
+
+// Draw no hints popup
+function drawNoHintsPopup() {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Popup box
+    const popupWidth = 320;
+    const popupHeight = 200;
+    const popupX = (canvas.width - popupWidth) / 2;
+    const popupY = (canvas.height - popupHeight) / 2;
+    const cornerRadius = 12;
+    
+    // Background
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.fill();
+    
+    // Border
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 3;
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.stroke();
+    
+    // Icon and title
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🚫', popupX + popupWidth/2, popupY + 45);
+    
+    ctx.font = 'bold 20px Arial';
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillText('No Hints Available!', popupX + popupWidth/2, popupY + 80);
+    
+    // Progress info
+    const hintsNeeded = 5 - (puzzlesSolved % 5);
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fillText(`Puzzles solved: ${puzzlesSolved}`, popupX + popupWidth/2, popupY + 110);
+    ctx.fillText(`Solve ${hintsNeeded} more to earn a hint`, popupX + popupWidth/2, popupY + 130);
+    
+    // Continue button
+    const buttonWidth = 120;
+    const buttonHeight = 35;
+    const buttonX = popupX + (popupWidth - buttonWidth) / 2;
+    const buttonY = popupY + popupHeight - 50;
+    
+    ctx.fillStyle = '#95a5a6';
+    drawRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 8);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('OK', buttonX + buttonWidth/2, buttonY + buttonHeight/2);
+}
+
 // Draw icon buttons (Restart, Levels, Hint, Help) - responsive
 function drawIconButtons(startX, buttonY, gridWidth) {
     const buttonSize = Math.max(45, Math.min(55, canvas.height / 12)); // Responsive size
@@ -472,14 +610,43 @@ function drawIconButtons(startX, buttonY, gridWidth) {
     ctx.fillStyle = '#fff';
     ctx.fillText('📋', levelsX + buttonSize/2, buttonYPos + buttonSize/2);
     
-    // Hint button (💡 or ▶️)
+    // Hint button (💡 or ▶️) with hint count
     ctx.fillStyle = hintColor;
     drawRoundedRect(hintX, buttonYPos, buttonSize, buttonSize, 12);
     ctx.fill();
     
     ctx.fillStyle = '#fff';
     const hintIcon = hintModeActive ? '▶️' : '💡';
+    const iconSize = Math.floor(buttonSize * 0.4);
+    ctx.font = `${iconSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillText(hintIcon, hintX + buttonSize/2, buttonYPos + buttonSize/2);
+    
+    // Show hint count in a circular badge on top-right corner
+    if (!hintModeActive && availableHints >= 0) {
+        const badgeRadius = 10;
+        const badgeX = hintX + buttonSize - badgeRadius + 3; // Move right
+        const badgeY = buttonYPos + badgeRadius - 3; // Move up
+        
+        // Draw white circle with black border
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Black border
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Hint count text
+        ctx.font = 'bold 11px Arial';
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(availableHints.toString(), badgeX, badgeY);
+    }
     
     // Help button (❓)
     ctx.fillStyle = helpColor;
@@ -835,16 +1002,48 @@ function showAllHints() {
 function startHintMode() {
     if (!currentLevel || !currentLevel.solution_path) return;
     
-    // Store current game state
-    originalGameState = JSON.parse(JSON.stringify(gridData));
+    // Check if user has hints available
+    if (availableHints <= 0) {
+        noHintsPopupActive = true;
+        drawGame();
+        return;
+    }
+    
+    console.log('Starting hint mode...');
+    
+    // Consume one hint
+    availableHints--;
+    saveHintProgress();
+    console.log(`Hint used. Remaining hints: ${availableHints}`);
+    
+    // Clear any active popups or animations
+    levelStartPopupActive = false;
+    levelCompletePopupActive = false;
+    helpPopupActive = false;
+    hintPopupActive = false;
+    bonusHintPopupActive = false;
+    noHintsPopupActive = false;
+    pendingBonusHint = false;
+    animatingBall = null;
+    
+    // Store current game state (make a deep copy)
+    originalGameState = [];
+    if (gridData) {
+        for (let i = 0; i < gridData.length; i++) {
+            originalGameState[i] = [...gridData[i]];
+        }
+    }
     
     // Enter hint mode
     hintModeActive = true;
     currentHintStep = 0;
     
-    // Reset to initial state
-    parseGridState(currentLevel.solution_path[0]);
+    // Reset to initial state - force parse
+    const initialState = currentLevel.solution_path[0];
+    console.log('Resetting to initial state:', initialState);
+    parseGridState(initialState);
     
+    // Force redraw
     drawGame();
 }
 
@@ -853,15 +1052,19 @@ function playNextHintStep() {
     if (!currentLevel || !currentLevel.solution_path || !hintModeActive) return;
     
     const totalSteps = currentLevel.solution_path.length - 1;
+    console.log(`Playing hint step ${currentHintStep + 1} of ${totalSteps}`);
     
     if (currentHintStep < totalSteps) {
         currentHintStep++;
         // Apply the next state
-        parseGridState(currentLevel.solution_path[currentHintStep]);
+        const nextState = currentLevel.solution_path[currentHintStep];
+        console.log('Applying state:', nextState);
+        parseGridState(nextState);
         drawGame();
         
         // Check if we've reached the end
         if (currentHintStep >= totalSteps) {
+            console.log('Solution complete, will exit hint mode');
             // Solution complete - exit hint mode after a delay
             setTimeout(() => {
                 exitHintMode();
@@ -874,15 +1077,22 @@ function playNextHintStep() {
 function exitHintMode() {
     if (!hintModeActive) return;
     
+    console.log('Exiting hint mode...');
+    
     hintModeActive = false;
     currentHintStep = 0;
     
     // Restore original game state if available
-    if (originalGameState) {
-        gridData = JSON.parse(JSON.stringify(originalGameState));
+    if (originalGameState && originalGameState.length > 0) {
+        console.log('Restoring original state');
+        gridData = [];
+        for (let i = 0; i < originalGameState.length; i++) {
+            gridData[i] = [...originalGameState[i]];
+        }
         originalGameState = null;
     } else {
-        // Fallback: reload the level
+        // Fallback: reload the level to initial state
+        console.log('Fallback: reloading level to initial state');
         parseGridState(currentLevel.solution_path[0]);
     }
     
@@ -1520,28 +1730,86 @@ function handleButtonClick(e) {
         const buttonHeight = 35;
         const buttonsY = popupY + popupHeight - 50;
         
-        // Next Level button (if not last level)
-        if (currentLevelNumber < 100) {
-            const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
-            if (x >= nextButtonX && x <= nextButtonX + buttonWidth && 
+        // Check if click is inside popup
+        if (x >= popupX && x <= popupX + popupWidth && 
+            y >= popupY && y <= popupY + popupHeight) {
+            
+            // Next Level button (if not last level)
+            if (currentLevelNumber < 100) {
+                const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
+                if (x >= nextButtonX && x <= nextButtonX + buttonWidth && 
+                    y >= buttonsY && y <= buttonsY + buttonHeight) {
+                    levelCompletePopupActive = false;
+                    currentLevelNumber++;
+                    loadLevel(currentLevelNumber);
+                    // Reset pending bonus hint when moving to next level
+                    pendingBonusHint = false;
+                    return;
+                }
+            }
+            
+            // Replay button
+            const replayButtonX = currentLevelNumber < 100 ? 
+                popupX + popupWidth/2 + 5 : 
+                popupX + (popupWidth - buttonWidth) / 2;
+            
+            if (x >= replayButtonX && x <= replayButtonX + buttonWidth && 
                 y >= buttonsY && y <= buttonsY + buttonHeight) {
                 levelCompletePopupActive = false;
-                currentLevelNumber++;
                 loadLevel(currentLevelNumber);
+                // Reset pending bonus hint when replaying level
+                pendingBonusHint = false;
                 return;
             }
-        }
-        
-        // Replay button
-        const replayButtonX = currentLevelNumber < 100 ? 
-            popupX + popupWidth/2 + 5 : 
-            popupX + (popupWidth - buttonWidth) / 2;
-        
-        if (x >= replayButtonX && x <= replayButtonX + buttonWidth && 
-            y >= buttonsY && y <= buttonsY + buttonHeight) {
+        } else {
+            // Clicked outside popup - dismiss and check for pending bonus hint
             levelCompletePopupActive = false;
-            loadLevel(currentLevelNumber);
+            if (pendingBonusHint) {
+                bonusHintPopupActive = true;
+                pendingBonusHint = false;
+                drawGame();
+            }
             return;
+        }
+        return;
+    }
+    
+    // Check if bonus hint popup is active
+    if (bonusHintPopupActive) {
+        const popupWidth = 300;
+        const popupHeight = 180;
+        const popupX = (canvas.width - popupWidth) / 2;
+        const popupY = (canvas.height - popupHeight) / 2;
+        
+        const buttonWidth = 120;
+        const buttonHeight = 35;
+        const buttonX = popupX + (popupWidth - buttonWidth) / 2;
+        const buttonY = popupY + popupHeight - 50;
+        
+        if (x >= buttonX && x <= buttonX + buttonWidth && 
+            y >= buttonY && y <= buttonY + buttonHeight) {
+            bonusHintPopupActive = false;
+            drawGame();
+        }
+        return;
+    }
+    
+    // Check if no hints popup is active
+    if (noHintsPopupActive) {
+        const popupWidth = 320;
+        const popupHeight = 200;
+        const popupX = (canvas.width - popupWidth) / 2;
+        const popupY = (canvas.height - popupHeight) / 2;
+        
+        const buttonWidth = 120;
+        const buttonHeight = 35;
+        const buttonX = popupX + (popupWidth - buttonWidth) / 2;
+        const buttonY = popupY + popupHeight - 50;
+        
+        if (x >= buttonX && x <= buttonX + buttonWidth && 
+            y >= buttonY && y <= buttonY + buttonHeight) {
+            noHintsPopupActive = false;
+            drawGame();
         }
         return;
     }
@@ -1836,6 +2104,19 @@ function checkWin() {
     // Level completed!
     completionMoves = moveCount;
     levelCompletePopupActive = true;
+    
+    // Award hint for every 5 puzzles solved
+    puzzlesSolved++;
+    if (puzzlesSolved % 5 === 0) {
+        availableHints++;
+        saveHintProgress();
+        console.log(`Bonus hint awarded! Puzzles solved: ${puzzlesSolved}, Available hints: ${availableHints}`);
+        // Mark bonus hint as pending to show after level completion popup
+        pendingBonusHint = true;
+    } else {
+        saveHintProgress();
+    }
+    
     drawGame();
 }
 
@@ -1877,6 +2158,39 @@ function updateScoreDisplay() {
     const scoreElement = document.getElementById('score');
     if (scoreElement) {
         scoreElement.textContent = moveCount;
+    }
+}
+
+// Save hint progress to localStorage
+function saveHintProgress() {
+    try {
+        localStorage.setItem('ballSwipeHints', availableHints.toString());
+        localStorage.setItem('ballSwipePuzzlesSolved', puzzlesSolved.toString());
+    } catch (e) {
+        console.log('Could not save hint progress:', e);
+    }
+}
+
+// Load hint progress from localStorage
+function loadHintProgress() {
+    try {
+        const savedHints = localStorage.getItem('ballSwipeHints');
+        const savedPuzzles = localStorage.getItem('ballSwipePuzzlesSolved');
+        
+        if (savedHints !== null) {
+            availableHints = parseInt(savedHints) || 3;
+        }
+        
+        if (savedPuzzles !== null) {
+            puzzlesSolved = parseInt(savedPuzzles) || 0;
+        }
+        
+        console.log(`Loaded hint progress - Hints: ${availableHints}, Puzzles solved: ${puzzlesSolved}`);
+    } catch (e) {
+        console.log('Could not load hint progress:', e);
+        // Use defaults
+        availableHints = 3;
+        puzzlesSolved = 0;
     }
 }
 
