@@ -17,6 +17,7 @@ let completionMoves = 0; // Store moves taken when level completed
 
 // Level selector pagination
 let currentLevelPage = 0; // Current page (0-based)
+let levelSelectorNavigating = false; // Prevent rapid navigation clicks
 
 // Hint system
 let hintPopupActive = false; // Track if hint popup is shown
@@ -1549,6 +1550,7 @@ function handleLevelSelectorClick(x, y) {
             currentLevelNumber = i;
             loadLevel(currentLevelNumber);
             window.levelSelectorActive = false;
+            levelSelectorNavigating = false;
             return;
         }
     }
@@ -1564,8 +1566,15 @@ function handleLevelSelectorClick(x, y) {
         const prevX = canvas.width / 2 - navButtonWidth - 10;
         if (x >= prevX && x <= prevX + navButtonWidth && 
             y >= navButtonY && y <= navButtonY + navButtonHeight) {
-            currentLevelPage--;
-            showLevelSelector();
+            if (!levelSelectorNavigating) {
+                levelSelectorNavigating = true;
+                currentLevelPage = Math.max(0, currentLevelPage - 1);
+                console.log('Previous button clicked - going to page:', currentLevelPage);
+                showLevelSelector();
+                setTimeout(() => {
+                    levelSelectorNavigating = false;
+                }, 200);
+            }
             return;
         }
     }
@@ -1575,8 +1584,15 @@ function handleLevelSelectorClick(x, y) {
         const nextX = canvas.width / 2 + 10;
         if (x >= nextX && x <= nextX + navButtonWidth && 
             y >= navButtonY && y <= navButtonY + navButtonHeight) {
-            currentLevelPage++;
-            showLevelSelector();
+            if (!levelSelectorNavigating) {
+                levelSelectorNavigating = true;
+                currentLevelPage = Math.min(totalPages - 1, currentLevelPage + 1);
+                console.log('Next button clicked - going to page:', currentLevelPage);
+                showLevelSelector();
+                setTimeout(() => {
+                    levelSelectorNavigating = false;
+                }, 200);
+            }
             return;
         }
     }
@@ -1589,6 +1605,7 @@ function handleLevelSelectorClick(x, y) {
     if (x >= closeButtonX && x <= closeButtonX + closeButtonSize && 
         y >= closeButtonY && y <= closeButtonY + closeButtonSize) {
         window.levelSelectorActive = false;
+        levelSelectorNavigating = false;
         drawGame();
     }
 }
