@@ -15,6 +15,12 @@ let completionMoves = 0; // Store moves taken when level completed
 // Level selector pagination
 let currentLevelPage = 0; // Current page (0-based)
 
+// Hint system
+let hintPopupActive = false; // Track if hint popup is shown
+let currentHintStep = 0; // Current step in the hint sequence
+let hintModeActive = false; // Track if we're in hint mode
+let originalGameState = null; // Store original state to restore
+
 // Animation variables
 let animatingBall = null; // Currently animating ball
 let animationStartTime = 0;
@@ -131,6 +137,13 @@ async function loadLevel(levelNumber) {
         // Reset move counter
         moveCount = 0;
         updateScoreDisplay();
+        
+        // Reset hint system
+        currentHintStep = 0;
+        hintPopupActive = false;
+        hintModeActive = false;
+        originalGameState = null;
+        hintPopupActive = false;
         
         // Show level start popup
         levelStartPopupActive = true;
@@ -253,6 +266,11 @@ function drawGame() {
     // Draw help popup if active
     if (helpPopupActive) {
         drawHelpPopup();
+    }
+    
+    // Draw hint popup if active
+    if (hintPopupActive) {
+        drawHintPopup();
     }
 }
 
@@ -416,20 +434,22 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.closePath();
 }
 
-// Draw icon buttons (Restart, Levels, Help) - responsive
+// Draw icon buttons (Restart, Levels, Hint, Help) - responsive
 function drawIconButtons(startX, buttonY, gridWidth) {
     const buttonSize = Math.max(45, Math.min(55, canvas.height / 12)); // Responsive size
     const buttonYPos = buttonY + 15; // Move buttons down a bit more
     
-    // Spread buttons evenly across full grid width
-    // Calculate positions for even distribution
+    // Calculate positions for 4 buttons evenly distributed
+    const spacing = (gridWidth - 4 * buttonSize) / 3; // Space between buttons
     const restartX = startX;
-    const levelsX = startX + (gridWidth - buttonSize) / 2; // Center button
-    const helpX = startX + gridWidth - buttonSize; // Right-aligned
+    const levelsX = startX + buttonSize + spacing;
+    const hintX = startX + 2 * (buttonSize + spacing);
+    const helpX = startX + 3 * (buttonSize + spacing);
     
     // Button colors
     const restartColor = '#FF9800';
     const levelsColor = '#2196F3';
+    const hintColor = '#F39C12';
     const helpColor = '#9C27B0';
     
     // Restart Level button (🔄)
@@ -451,6 +471,15 @@ function drawIconButtons(startX, buttonY, gridWidth) {
     
     ctx.fillStyle = '#fff';
     ctx.fillText('📋', levelsX + buttonSize/2, buttonYPos + buttonSize/2);
+    
+    // Hint button (💡 or ▶️)
+    ctx.fillStyle = hintColor;
+    drawRoundedRect(hintX, buttonYPos, buttonSize, buttonSize, 12);
+    ctx.fill();
+    
+    ctx.fillStyle = '#fff';
+    const hintIcon = hintModeActive ? '▶️' : '💡';
+    ctx.fillText(hintIcon, hintX + buttonSize/2, buttonYPos + buttonSize/2);
     
     // Help button (❓)
     ctx.fillStyle = helpColor;
@@ -574,6 +603,290 @@ function drawInstructions(startX, instructionsY, gridWidth) {
     instructions.forEach((instruction, index) => {
         ctx.fillText(instruction, boxStartX + boxWidth/2, currentY + (index * lineSpacing));
     });
+}
+
+// Draw hint popup
+function drawHintPopup() {
+    const popupWidth = Math.min(350, canvas.width - 40);
+    const popupHeight = Math.min(400, canvas.height - 80);
+    const popupX = (canvas.width - popupWidth) / 2;
+    const popupY = (canvas.height - popupHeight) / 2;
+    const cornerRadius = 12;
+    
+    // Background overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Popup background
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.fill();
+    
+    // Popup border
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = 2;
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.stroke();
+    
+    // Title
+    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 22px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`Level ${currentLevelNumber} - Hints`, popupX + popupWidth/2, popupY + 20);
+    
+    if (currentLevel && currentLevel.solution_path) {
+        const steps = generateSolutionSteps();
+        const totalSteps = steps.length;
+        
+        // Step counter
+        ctx.fillStyle = '#7f8c8d';
+        ctx.font = '16px Arial';
+        ctx.fillText(`Step ${currentHintStep + 1} of ${totalSteps}`, popupX + popupWidth/2, popupY + 55);
+        
+        // Current step instruction
+        if (steps[currentHintStep]) {
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '18px Arial';
+            ctx.textAlign = 'center';
+            
+            const instruction = steps[currentHintStep];
+            const words = instruction.split(' ');
+            let line = '';
+            let y = popupY + 100;
+            const lineHeight = 25;
+            const maxWidth = popupWidth - 40;
+            
+            for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' ';
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && i > 0) {
+                    ctx.fillText(line, popupX + popupWidth/2, y);
+                    line = words[i] + ' ';
+                    y += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            ctx.fillText(line, popupX + popupWidth/2, y);
+        }
+        
+        // Navigation buttons
+        const buttonWidth = 80;
+        const buttonHeight = 35;
+        const buttonY = popupY + popupHeight - 100;
+        
+        // Previous step button
+        if (currentHintStep > 0) {
+            ctx.fillStyle = '#95a5a6';
+            const prevX = popupX + 30;
+            drawRoundedRect(prevX, buttonY, buttonWidth, buttonHeight, 8);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('◀ Previous', prevX + buttonWidth/2, buttonY + buttonHeight/2);
+        }
+        
+        // Next step button
+        if (currentHintStep < totalSteps - 1) {
+            ctx.fillStyle = '#3498db';
+            const nextX = popupX + popupWidth - buttonWidth - 30;
+            drawRoundedRect(nextX, buttonY, buttonWidth, buttonHeight, 8);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Next ▶', nextX + buttonWidth/2, buttonY + buttonHeight/2);
+        }
+        
+        // Show all steps button
+        ctx.fillStyle = '#27ae60';
+        const showAllX = popupX + (popupWidth - buttonWidth) / 2;
+        const showAllY = buttonY + 45;
+        drawRoundedRect(showAllX, showAllY, buttonWidth, buttonHeight, 8);
+        ctx.fill();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px Arial';
+        ctx.fillText('Show All', showAllX + buttonWidth/2, showAllY + buttonHeight/2);
+    }
+    
+    // Close button - top right corner
+    const closeButtonSize = 30;
+    const closeButtonX = popupX + popupWidth - closeButtonSize - 15;
+    const closeButtonY = popupY + 15;
+    
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(closeButtonX + closeButtonSize/2, closeButtonY + closeButtonSize/2, closeButtonSize/2, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Draw X inside
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const crossSize = closeButtonSize * 0.4;
+    const centerX = closeButtonX + closeButtonSize/2;
+    const centerY = closeButtonY + closeButtonSize/2;
+    
+    ctx.beginPath();
+    ctx.moveTo(centerX - crossSize/2, centerY - crossSize/2);
+    ctx.lineTo(centerX + crossSize/2, centerY + crossSize/2);
+    ctx.moveTo(centerX + crossSize/2, centerY - crossSize/2);
+    ctx.lineTo(centerX - crossSize/2, centerY + crossSize/2);
+    ctx.stroke();
+}
+
+// Generate solution steps by comparing consecutive states
+function generateSolutionSteps() {
+    if (!currentLevel || !currentLevel.solution_path) return [];
+    
+    const steps = [];
+    const states = currentLevel.solution_path;
+    
+    for (let i = 1; i < states.length; i++) {
+        const prevState = states[i - 1];
+        const currentState = states[i];
+        const instruction = compareStatesForInstruction(prevState, currentState);
+        if (instruction) {
+            steps.push(instruction);
+        }
+    }
+    
+    return steps;
+}
+
+// Compare two game states to generate move instruction
+function compareStatesForInstruction(prevState, currentState) {
+    const gridWidth = currentLevel.puzzle_info.grid_width;
+    
+    // Find what changed between states
+    for (let i = 0; i < prevState.length; i++) {
+        const prevValue = parseInt(prevState[i]);
+        const currentValue = parseInt(currentState[i]);
+        
+        // Ball disappeared from this position
+        if (prevValue >= 2 && prevValue <= 4 && currentValue !== prevValue) {
+            const fromRow = Math.floor(i / gridWidth);
+            const fromCol = i % gridWidth;
+            
+            // Find where this ball went
+            for (let j = 0; j < currentState.length; j++) {
+                const newValue = parseInt(currentState[j]);
+                const oldValue = parseInt(prevState[j]);
+                
+                if (newValue === prevValue && oldValue !== newValue) {
+                    const toRow = Math.floor(j / gridWidth);
+                    const toCol = j % gridWidth;
+                    
+                    const ballColor = getBallColorName(prevValue);
+                    const direction = getDirection(fromRow, fromCol, toRow, toCol);
+                    
+                    return `Move ${ballColor} ball ${direction}`;
+                }
+            }
+        }
+    }
+    
+    return 'Make a move';
+}
+
+// Get ball color name from value
+function getBallColorName(value) {
+    switch (value) {
+        case 2: return 'red';
+        case 3: return 'green';
+        case 4: return 'blue';
+        default: return 'ball';
+    }
+}
+
+// Get direction from movement
+function getDirection(fromRow, fromCol, toRow, toCol) {
+    if (toRow < fromRow) return 'up';
+    if (toRow > fromRow) return 'down';
+    if (toCol < fromCol) return 'left';
+    if (toCol > fromCol) return 'right';
+    return 'to new position';
+}
+
+// Show all hints in alert dialog
+function showAllHints() {
+    if (!currentLevel || !currentLevel.solution_path) return;
+    
+    const steps = generateSolutionSteps();
+    let message = `Complete Solution for Level ${currentLevelNumber}:\n\n`;
+    
+    steps.forEach((step, index) => {
+        message += `${index + 1}. ${step}\n`;
+    });
+    
+    message += `\nTotal steps: ${steps.length}`;
+    
+    alert(message);
+}
+
+// Start hint mode - reset to initial state
+function startHintMode() {
+    if (!currentLevel || !currentLevel.solution_path) return;
+    
+    // Store current game state
+    originalGameState = JSON.parse(JSON.stringify(gridData));
+    
+    // Enter hint mode
+    hintModeActive = true;
+    currentHintStep = 0;
+    
+    // Reset to initial state
+    parseGridState(currentLevel.solution_path[0]);
+    
+    drawGame();
+}
+
+// Play next hint step
+function playNextHintStep() {
+    if (!currentLevel || !currentLevel.solution_path || !hintModeActive) return;
+    
+    const totalSteps = currentLevel.solution_path.length - 1;
+    
+    if (currentHintStep < totalSteps) {
+        currentHintStep++;
+        // Apply the next state
+        parseGridState(currentLevel.solution_path[currentHintStep]);
+        drawGame();
+        
+        // Check if we've reached the end
+        if (currentHintStep >= totalSteps) {
+            // Solution complete - exit hint mode after a delay
+            setTimeout(() => {
+                exitHintMode();
+            }, 1500);
+        }
+    }
+}
+
+// Exit hint mode and restore original state
+function exitHintMode() {
+    if (!hintModeActive) return;
+    
+    hintModeActive = false;
+    currentHintStep = 0;
+    
+    // Restore original game state if available
+    if (originalGameState) {
+        gridData = JSON.parse(JSON.stringify(originalGameState));
+        originalGameState = null;
+    } else {
+        // Fallback: reload the level
+        parseGridState(currentLevel.solution_path[0]);
+    }
+    
+    drawGame();
 }
 
 // Draw simple grid lines
@@ -788,6 +1101,217 @@ function showLevelSelector() {
     window.levelSelectorActive = true;
 }
 
+// Draw hint popup
+function drawHintPopup() {
+    const popupWidth = Math.min(350, canvas.width - 40);
+    const popupHeight = Math.min(400, canvas.height - 80);
+    const popupX = (canvas.width - popupWidth) / 2;
+    const popupY = (canvas.height - popupHeight) / 2;
+    const cornerRadius = 12;
+    
+    // Background overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Popup background
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.fill();
+    
+    // Popup border
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = 2;
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.stroke();
+    
+    // Title
+    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`Level ${currentLevelNumber} - Solution Steps`, popupX + popupWidth/2, popupY + 20);
+    
+    if (currentLevel && currentLevel.solution_path) {
+        const steps = generateSolutionSteps();
+        const totalSteps = steps.length;
+        
+        // Step counter
+        ctx.fillStyle = '#7f8c8d';
+        ctx.font = '16px Arial';
+        ctx.fillText(`Step ${currentHintStep + 1} of ${totalSteps}`, popupX + popupWidth/2, popupY + 55);
+        
+        // Current step instruction
+        if (steps[currentHintStep]) {
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '18px Arial';
+            ctx.textAlign = 'center';
+            
+            const instruction = steps[currentHintStep];
+            const words = instruction.split(' ');
+            let line = '';
+            let y = popupY + 100;
+            const lineHeight = 25;
+            const maxWidth = popupWidth - 40;
+            
+            for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' ';
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && i > 0) {
+                    ctx.fillText(line, popupX + popupWidth/2, y);
+                    line = words[i] + ' ';
+                    y += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            ctx.fillText(line, popupX + popupWidth/2, y);
+        }
+        
+        // Navigation buttons
+        const buttonWidth = 80;
+        const buttonHeight = 35;
+        const buttonY = popupY + popupHeight - 100;
+        
+        // Previous step button
+        if (currentHintStep > 0) {
+            ctx.fillStyle = '#95a5a6';
+            const prevX = popupX + 30;
+            drawRoundedRect(prevX, buttonY, buttonWidth, buttonHeight, 8);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('◀ Previous', prevX + buttonWidth/2, buttonY + buttonHeight/2);
+        }
+        
+        // Next step button
+        if (currentHintStep < totalSteps - 1) {
+            ctx.fillStyle = '#3498db';
+            const nextX = popupX + popupWidth - buttonWidth - 30;
+            drawRoundedRect(nextX, buttonY, buttonWidth, buttonHeight, 8);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Next ▶', nextX + buttonWidth/2, buttonY + buttonHeight/2);
+        }
+        
+        // Show all steps button
+        ctx.fillStyle = '#27ae60';
+        const showAllX = popupX + (popupWidth - buttonWidth) / 2;
+        const showAllY = buttonY + 45;
+        drawRoundedRect(showAllX, showAllY, buttonWidth, buttonHeight, 8);
+        ctx.fill();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px Arial';
+        ctx.fillText('Show All', showAllX + buttonWidth/2, showAllY + buttonHeight/2);
+    }
+    
+    // Close button - top right corner
+    const closeButtonSize = 30;
+    const closeButtonX = popupX + popupWidth - closeButtonSize - 15;
+    const closeButtonY = popupY + 15;
+    
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(closeButtonX + closeButtonSize/2, closeButtonY + closeButtonSize/2, closeButtonSize/2, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Draw X inside
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const crossSize = closeButtonSize * 0.4;
+    const centerX = closeButtonX + closeButtonSize/2;
+    const centerY = closeButtonY + closeButtonSize/2;
+    
+    ctx.beginPath();
+    ctx.moveTo(centerX - crossSize/2, centerY - crossSize/2);
+    ctx.lineTo(centerX + crossSize/2, centerY + crossSize/2);
+    ctx.moveTo(centerX + crossSize/2, centerY - crossSize/2);
+    ctx.lineTo(centerX - crossSize/2, centerY + crossSize/2);
+    ctx.stroke();
+}
+
+// Generate solution steps by comparing consecutive states
+function generateSolutionSteps() {
+    if (!currentLevel || !currentLevel.solution_path) return [];
+    
+    const steps = [];
+    const states = currentLevel.solution_path;
+    
+    for (let i = 1; i < states.length; i++) {
+        const prevState = states[i - 1];
+        const currentState = states[i];
+        const instruction = compareStatesForInstruction(prevState, currentState);
+        if (instruction) {
+            steps.push(instruction);
+        }
+    }
+    
+    return steps;
+}
+
+// Compare two game states to generate move instruction
+function compareStatesForInstruction(prevState, currentState) {
+    const gridWidth = currentLevel.puzzle_info.grid_width;
+    const gridHeight = currentLevel.puzzle_info.grid_height;
+    
+    // Find what changed between states
+    for (let i = 0; i < prevState.length; i++) {
+        const prevValue = parseInt(prevState[i]);
+        const currentValue = parseInt(currentState[i]);
+        
+        // Ball disappeared from this position
+        if (prevValue >= 2 && prevValue <= 4 && currentValue !== prevValue) {
+            const fromRow = Math.floor(i / gridWidth);
+            const fromCol = i % gridWidth;
+            
+            // Find where this ball went
+            for (let j = 0; j < currentState.length; j++) {
+                const newValue = parseInt(currentState[j]);
+                const oldValue = parseInt(prevState[j]);
+                
+                if (newValue === prevValue && oldValue !== newValue) {
+                    const toRow = Math.floor(j / gridWidth);
+                    const toCol = j % gridWidth;
+                    
+                    const ballColor = getBallColorName(prevValue);
+                    const direction = getDirection(fromRow, fromCol, toRow, toCol);
+                    
+                    return `Move ${ballColor} ball ${direction}`;
+                }
+            }
+        }
+    }
+    
+    return 'Make a move';
+}
+
+// Get ball color name from value
+function getBallColorName(value) {
+    switch (value) {
+        case 2: return 'red';
+        case 3: return 'green';
+        case 4: return 'blue';
+        default: return 'ball';
+    }
+}
+
+// Get direction from movement
+function getDirection(fromRow, fromCol, toRow, toCol) {
+    if (toRow < fromRow) return 'up';
+    if (toRow > fromRow) return 'down';
+    if (toCol < fromCol) return 'left';
+    if (toCol > fromCol) return 'right';
+    return 'to new position';
+}
+
 // Handle level selector clicks with pagination
 function handleLevelSelectorClick(x, y) {
     const levelsPerPage = 25;
@@ -997,7 +1521,7 @@ function handleButtonClick(e) {
         const buttonsY = popupY + popupHeight - 50;
         
         // Next Level button (if not last level)
-        if (currentLevelNumber < 20) {
+        if (currentLevelNumber < 100) {
             const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
             if (x >= nextButtonX && x <= nextButtonX + buttonWidth && 
                 y >= buttonsY && y <= buttonsY + buttonHeight) {
@@ -1009,7 +1533,7 @@ function handleButtonClick(e) {
         }
         
         // Replay button
-        const replayButtonX = currentLevelNumber < 20 ? 
+        const replayButtonX = currentLevelNumber < 100 ? 
             popupX + popupWidth/2 + 5 : 
             popupX + (popupWidth - buttonWidth) / 2;
         
@@ -1051,6 +1575,66 @@ function handleButtonClick(e) {
         return; // Don't process other clicks when help popup is open
     }
     
+    // Check hint popup
+    if (hintPopupActive) {
+        const popupWidth = Math.min(350, canvas.width - 40);
+        const popupHeight = Math.min(400, canvas.height - 80);
+        const popupX = (canvas.width - popupWidth) / 2;
+        const popupY = (canvas.height - popupHeight) / 2;
+        
+        // Close button
+        const closeButtonSize = 30;
+        const closeButtonX = popupX + popupWidth - closeButtonSize - 15;
+        const closeButtonY = popupY + 15;
+        
+        if (x >= closeButtonX && x <= closeButtonX + closeButtonSize && 
+            y >= closeButtonY && y <= closeButtonY + closeButtonSize) {
+            hintPopupActive = false;
+            drawGame();
+            return;
+        }
+        
+        if (currentLevel && currentLevel.solution_path) {
+            const steps = generateSolutionSteps();
+            const buttonWidth = 80;
+            const buttonHeight = 35;
+            const buttonY = popupY + popupHeight - 100;
+            
+            // Previous step button
+            if (currentHintStep > 0) {
+                const prevX = popupX + 30;
+                if (x >= prevX && x <= prevX + buttonWidth && 
+                    y >= buttonY && y <= buttonY + buttonHeight) {
+                    currentHintStep--;
+                    drawGame();
+                    return;
+                }
+            }
+            
+            // Next step button
+            if (currentHintStep < steps.length - 1) {
+                const nextX = popupX + popupWidth - buttonWidth - 30;
+                if (x >= nextX && x <= nextX + buttonWidth && 
+                    y >= buttonY && y <= buttonY + buttonHeight) {
+                    currentHintStep++;
+                    drawGame();
+                    return;
+                }
+            }
+            
+            // Show all steps button
+            const showAllX = popupX + (popupWidth - buttonWidth) / 2;
+            const showAllY = buttonY + 45;
+            if (x >= showAllX && x <= showAllX + buttonWidth && 
+                y >= showAllY && y <= showAllY + buttonHeight) {
+                showAllHints();
+                return;
+            }
+        }
+        
+        return; // Don't process other clicks when hint popup is open
+    }
+    
     // Check icon buttons using consistent grid layout
     const layout = getCurrentGridLayout();
     if (!layout) return;
@@ -1060,15 +1644,20 @@ function handleButtonClick(e) {
     const buttonSize = Math.max(45, Math.min(55, canvas.height / 12));
     const gridWidth = layout.width * layout.cellSize;
     
-    // Calculate positions for even distribution (matching drawIconButtons)
+    // Calculate positions for 4 buttons evenly distributed (matching drawIconButtons)
+    const spacing = (gridWidth - 4 * buttonSize) / 3; // Space between buttons
     const restartX = layout.startX;
-    const levelsX = layout.startX + (gridWidth - buttonSize) / 2; // Center button
-    const helpX = layout.startX + gridWidth - buttonSize; // Right-aligned
+    const levelsX = layout.startX + buttonSize + spacing;
+    const hintX = layout.startX + 2 * (buttonSize + spacing);
+    const helpX = layout.startX + 3 * (buttonSize + spacing);
     
     // Restart button
     if (x >= restartX && x <= restartX + buttonSize && 
         y >= buttonYPos && y <= buttonYPos + buttonSize) {
         console.log('Restart button clicked');
+        if (hintModeActive) {
+            exitHintMode();
+        }
         loadLevel(currentLevelNumber);
         return;
     }
@@ -1078,6 +1667,21 @@ function handleButtonClick(e) {
         y >= buttonYPos && y <= buttonYPos + buttonSize) {
         console.log('Levels button clicked');
         showLevelSelector();
+        return;
+    }
+    
+    // Hint button
+    if (x >= hintX && x <= hintX + buttonSize && 
+        y >= buttonYPos && y <= buttonYPos + buttonSize) {
+        console.log('Hint button clicked');
+        
+        if (!hintModeActive) {
+            // Enter hint mode - go to initial state
+            startHintMode();
+        } else {
+            // Play next step
+            playNextHintStep();
+        }
         return;
     }
     
@@ -1092,7 +1696,7 @@ function handleButtonClick(e) {
 }
 
 function handleMouseDown(e) {
-    if (!currentLevel) return;
+    if (!currentLevel || hintModeActive) return; // Disable dragging in hint mode
     
     const rect = canvas.getBoundingClientRect();
     
