@@ -9,6 +9,7 @@ let dragStartX = 0, dragStartY = 0, dragStartCell = null;
 let moveCount = 0; // Track number of moves made
 let levelStartPopupActive = false; // Track if level start popup is shown
 let levelCompletePopupActive = false; // Track if level complete popup is shown
+let helpPopupActive = false; // Track if help popup is shown
 let completionMoves = 0; // Store moves taken when level completed
 
 // Animation variables
@@ -233,11 +234,8 @@ function drawGame() {
         }
     }
     
-    // Draw game buttons
-    drawGameButtons(layout.startX, layout.startY + layout.height * layout.cellSize + 20, layout.width * layout.cellSize);
-    
-    // Draw instructions
-    drawInstructions(layout.startX, layout.startY + layout.height * layout.cellSize + 70, layout.width * layout.cellSize);
+    // Draw icon buttons
+    drawIconButtons(layout.startX, layout.startY + layout.height * layout.cellSize + 20, layout.width * layout.cellSize);
     
     // Draw level start popup if active
     if (levelStartPopupActive) {
@@ -247,6 +245,11 @@ function drawGame() {
     // Draw level complete popup if active
     if (levelCompletePopupActive) {
         drawLevelCompletePopup();
+    }
+    
+    // Draw help popup if active
+    if (helpPopupActive) {
+        drawHelpPopup();
     }
 }
 
@@ -410,32 +413,114 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.closePath();
 }
 
-// Draw game buttons (Restart and Levels) - responsive
-function drawGameButtons(startX, buttonY, gridWidth) {
-    const buttonWidth = (gridWidth - 10) / 2; // Split width between two buttons with gap
-    const buttonHeight = Math.max(30, Math.min(40, canvas.height / 15)); // Responsive height
-    const cornerRadius = 8;
-    const fontSize = Math.max(12, Math.min(16, canvas.width / 25)); // Responsive font
+// Draw icon buttons (Restart, Levels, Help) - responsive
+function drawIconButtons(startX, buttonY, gridWidth) {
+    const buttonSize = Math.max(45, Math.min(55, canvas.height / 12)); // Responsive size
+    const buttonYPos = buttonY + 15; // Move buttons down a bit more
     
-    // Restart Level button
-    ctx.fillStyle = '#FF9800';
-    drawRoundedRect(startX, buttonY, buttonWidth, buttonHeight, cornerRadius);
+    // Spread buttons evenly across full grid width
+    // Calculate positions for even distribution
+    const restartX = startX;
+    const levelsX = startX + (gridWidth - buttonSize) / 2; // Center button
+    const helpX = startX + gridWidth - buttonSize; // Right-aligned
+    
+    // Button colors
+    const restartColor = '#FF9800';
+    const levelsColor = '#2196F3';
+    const helpColor = '#9C27B0';
+    
+    // Restart Level button (🔄)
+    ctx.fillStyle = restartColor;
+    drawRoundedRect(restartX, buttonYPos, buttonSize, buttonSize, 12);
     ctx.fill();
     
+    // Restart icon
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.font = `${Math.floor(buttonSize * 0.5)}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Restart Level', startX + buttonWidth/2, buttonY + buttonHeight/2);
+    ctx.fillText('🔄', restartX + buttonSize/2, buttonYPos + buttonSize/2);
     
-    // Levels button
-    ctx.fillStyle = '#2196F3';
-    drawRoundedRect(startX + buttonWidth + 10, buttonY, buttonWidth, buttonHeight, cornerRadius);
+    // Levels button (📋)
+    ctx.fillStyle = levelsColor;
+    drawRoundedRect(levelsX, buttonYPos, buttonSize, buttonSize, 12);
     ctx.fill();
     
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${fontSize}px Arial`;
-    ctx.fillText('Levels', startX + buttonWidth + 10 + buttonWidth/2, buttonY + buttonHeight/2);
+    ctx.fillText('📋', levelsX + buttonSize/2, buttonYPos + buttonSize/2);
+    
+    // Help button (❓)
+    ctx.fillStyle = helpColor;
+    drawRoundedRect(helpX, buttonYPos, buttonSize, buttonSize, 12);
+    ctx.fill();
+    
+    ctx.fillStyle = '#fff';
+    ctx.fillText('❓', helpX + buttonSize/2, buttonYPos + buttonSize/2);
+}
+
+// Draw help popup
+function drawHelpPopup() {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Popup dimensions
+    const popupWidth = Math.min(320, canvas.width - 40);
+    const popupHeight = Math.min(280, canvas.height - 80);
+    const popupX = (canvas.width - popupWidth) / 2;
+    const popupY = (canvas.height - popupHeight) / 2;
+    
+    // Popup background
+    ctx.fillStyle = '#8e44ad'; // Purple background
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, 15);
+    ctx.fill();
+    
+    // Border
+    ctx.strokeStyle = '#732d91';
+    ctx.lineWidth = 3;
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, 15);
+    ctx.stroke();
+    
+    // Title
+    ctx.fillStyle = '#ffffff';
+    const titleFontSize = Math.max(16, Math.min(22, canvas.width / 18));
+    ctx.font = `bold ${titleFontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('❓ How to Play', popupX + popupWidth/2, popupY + 20);
+    
+    // Instructions
+    const bodyFontSize = Math.max(11, Math.min(15, canvas.width / 25));
+    ctx.font = `${bodyFontSize}px Arial`;
+    ctx.fillStyle = '#f8f9fa';
+    const lineSpacing = bodyFontSize + 5;
+    let currentY = popupY + 60;
+    
+    const instructions = [
+        '🎯 Drag colored balls to move them',
+        '🔄 Balls slide until they hit an obstacle',
+        '⭕ Get each ball to its target circle',
+        '🏆 Complete all targets to win!',
+        '🎮 Use buttons below to navigate'
+    ];
+    
+    instructions.forEach((instruction, index) => {
+        ctx.fillText(instruction, popupX + popupWidth/2, currentY + (index * lineSpacing));
+    });
+    
+    // Close button
+    const buttonWidth = 120;
+    const buttonHeight = 35;
+    const buttonX = popupX + (popupWidth - buttonWidth) / 2;
+    const buttonY = popupY + popupHeight - 55;
+    
+    ctx.fillStyle = '#e74c3c';
+    drawRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 8);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold 14px Arial`;
+    ctx.fillText('Close', buttonX + buttonWidth/2, buttonY + buttonHeight/2);
 }
 
 // Draw instructions below buttons - responsive with expanded content
@@ -862,27 +947,63 @@ function handleButtonClick(e) {
     
     if (!currentLevel || !gridData) return;
     
-    // Check game buttons using consistent grid layout
+    // Check help popup close button first
+    if (helpPopupActive) {
+        const popupWidth = Math.min(320, canvas.width - 40);
+        const popupHeight = Math.min(280, canvas.height - 80);
+        const popupX = (canvas.width - popupWidth) / 2;
+        const popupY = (canvas.height - popupHeight) / 2;
+        
+        const buttonWidth = 120;
+        const buttonHeight = 35;
+        const buttonX = popupX + (popupWidth - buttonWidth) / 2;
+        const buttonY = popupY + popupHeight - 55;
+        
+        if (x >= buttonX && x <= buttonX + buttonWidth && 
+            y >= buttonY && y <= buttonY + buttonHeight) {
+            helpPopupActive = false;
+            drawGame();
+            return;
+        }
+        return; // Don't process other clicks when help popup is open
+    }
+    
+    // Check icon buttons using consistent grid layout
     const layout = getCurrentGridLayout();
     if (!layout) return;
     
     const buttonY = layout.startY + layout.height * layout.cellSize + 20;
-    const buttonWidth = (layout.width * layout.cellSize - 10) / 2;
-    const buttonHeight = Math.max(30, Math.min(40, canvas.height / 15)); // Responsive height
+    const buttonYPos = buttonY + 15; // Match the moved down position
+    const buttonSize = Math.max(45, Math.min(55, canvas.height / 12));
+    const gridWidth = layout.width * layout.cellSize;
+    
+    // Calculate positions for even distribution (matching drawIconButtons)
+    const restartX = layout.startX;
+    const levelsX = layout.startX + (gridWidth - buttonSize) / 2; // Center button
+    const helpX = layout.startX + gridWidth - buttonSize; // Right-aligned
     
     // Restart button
-    if (x >= layout.startX && x <= layout.startX + buttonWidth && 
-        y >= buttonY && y <= buttonY + buttonHeight) {
+    if (x >= restartX && x <= restartX + buttonSize && 
+        y >= buttonYPos && y <= buttonYPos + buttonSize) {
         console.log('Restart button clicked');
         loadLevel(currentLevelNumber);
         return;
     }
     
     // Levels button
-    if (x >= layout.startX + buttonWidth + 10 && x <= layout.startX + layout.width * layout.cellSize && 
-        y >= buttonY && y <= buttonY + buttonHeight) {
+    if (x >= levelsX && x <= levelsX + buttonSize && 
+        y >= buttonYPos && y <= buttonYPos + buttonSize) {
         console.log('Levels button clicked');
         showLevelSelector();
+        return;
+    }
+    
+    // Help button
+    if (x >= helpX && x <= helpX + buttonSize && 
+        y >= buttonYPos && y <= buttonYPos + buttonSize) {
+        console.log('Help button clicked');
+        helpPopupActive = true;
+        drawGame();
         return;
     }
 }
