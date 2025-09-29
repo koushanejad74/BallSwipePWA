@@ -21,9 +21,17 @@ let levelSelectorNavigating = false; // Prevent rapid navigation clicks
 
 // Difficulty system
 let difficultySelectionActive = false; // Track if difficulty selection popup is shown
-let currentDifficulty = 'Easy'; // Current difficulty: Easy, Medium, Hard, Impossible
+let currentDifficulty = 'Easy'; // Current difficulty: Easy, Medium, Hard, Evil
 const LEVELS_PER_DIFFICULTY = 250; // 250 levels per difficulty
-const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Impossible'];
+const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Evil'];
+
+// Progress tracking system
+let progressData = {
+    'Easy': { maxUnlocked: 1, completed: [] },
+    'Medium': { maxUnlocked: 1, completed: [] },
+    'Hard': { maxUnlocked: 1, completed: [] },
+    'Evil': { maxUnlocked: 1, completed: [] }
+};
 
 // Hint system
 let hintPopupActive = false; // Track if hint popup is shown
@@ -106,8 +114,14 @@ function initGame() {
             }, 100);
         });
         
+        // Load progress from localStorage
+        loadProgress();
+        
+        // Set current level to the highest unlocked level in current difficulty
+        currentLevelNumber = Math.min(progressData[currentDifficulty].maxUnlocked, LEVELS_PER_DIFFICULTY);
+        
         // Load first level
-        console.log('Loading first level...');
+        console.log(`Loading level ${currentLevelNumber} in ${currentDifficulty} difficulty...`);
         loadLevel(currentLevelNumber, currentDifficulty);
         
     } catch (error) {
@@ -262,6 +276,73 @@ function parseTargetState(stateString) {
             targetData[i][j] = parseInt(stateString[index]) || 0;
         }
     }
+}
+
+// Progress management functions
+function saveProgress() {
+    try {
+        localStorage.setItem('ballSwipeProgress', JSON.stringify(progressData));
+        console.log('Progress saved:', progressData);
+    } catch (error) {
+        console.error('Failed to save progress:', error);
+    }
+}
+
+function loadProgress() {
+    try {
+        const saved = localStorage.getItem('ballSwipeProgress');
+        if (saved) {
+            const loadedProgress = JSON.parse(saved);
+            // Merge with default structure to ensure all difficulties exist
+            DIFFICULTIES.forEach(difficulty => {
+                if (loadedProgress[difficulty]) {
+                    progressData[difficulty] = {
+                        maxUnlocked: loadedProgress[difficulty].maxUnlocked || 1,
+                        completed: loadedProgress[difficulty].completed || []
+                    };
+                }
+            });
+            console.log('Progress loaded:', progressData);
+        } else {
+            console.log('No saved progress found, using defaults');
+        }
+    } catch (error) {
+        console.error('Failed to load progress:', error);
+        // Reset to defaults on error
+        progressData = {
+            'Easy': { maxUnlocked: 1, completed: [] },
+            'Medium': { maxUnlocked: 1, completed: [] },
+            'Hard': { maxUnlocked: 1, completed: [] },
+            'Evil': { maxUnlocked: 1, completed: [] }
+        };
+    }
+}
+
+function markLevelCompleted(difficulty, levelNumber) {
+    const progress = progressData[difficulty];
+    
+    // Add to completed array if not already there
+    if (!progress.completed.includes(levelNumber)) {
+        progress.completed.push(levelNumber);
+        progress.completed.sort((a, b) => a - b); // Keep sorted
+    }
+    
+    // Unlock next level
+    const nextLevel = levelNumber + 1;
+    if (nextLevel <= LEVELS_PER_DIFFICULTY && nextLevel > progress.maxUnlocked) {
+        progress.maxUnlocked = nextLevel;
+    }
+    
+    saveProgress();
+    console.log(`Level ${levelNumber} completed in ${difficulty}. Max unlocked: ${progress.maxUnlocked}`);
+}
+
+function isLevelUnlocked(difficulty, levelNumber) {
+    return levelNumber <= progressData[difficulty].maxUnlocked;
+}
+
+function isLevelCompleted(difficulty, levelNumber) {
+    return progressData[difficulty].completed.includes(levelNumber);
 }
 
 // Draw the game
@@ -1310,18 +1391,48 @@ function showLevelSelector() {
         const x = startX + col * (buttonSize + spacing);
         const y = startY + row * (buttonSize + spacing);
         
-        // Button background
-        ctx.fillStyle = i === currentLevelNumber ? '#4CAF50' : '#2196F3';
+        // Check level status
+        const isUnlocked = isLevelUnlocked(currentDifficulty, i);
+        const isCompleted = isLevelCompleted(currentDifficulty, i);
+        const isCurrent = i === currentLevelNumber;
+        
+        // Button background based on status
+        if (!isUnlocked) {
+            ctx.fillStyle = '#757575'; // Gray for locked levels
+        } else if (isCurrent) {
+            ctx.fillStyle = '#4CAF50'; // Green for current level
+        } else if (isCompleted) {
+            ctx.fillStyle = '#FF9800'; // Orange for completed levels
+        } else {
+            ctx.fillStyle = '#2196F3'; // Blue for available levels
+        }
+        
         drawRoundedRect(x, y, buttonSize, buttonSize, 8);
         ctx.fill();
         
-        // Level number
-        ctx.fillStyle = '#fff';
-        const fontSize = Math.max(12, Math.min(16, buttonSize / 3.5));
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(i.toString(), x + buttonSize/2, y + buttonSize/2);
+        // Add lock icon for locked levels
+        if (!isUnlocked) {
+            ctx.fillStyle = '#424242';
+            ctx.font = `${Math.floor(buttonSize * 0.4)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🔒', x + buttonSize/2, y + buttonSize/2);
+        } else {
+            // Level number
+            ctx.fillStyle = '#fff';
+            const fontSize = Math.max(12, Math.min(16, buttonSize / 3.5));
+            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(i.toString(), x + buttonSize/2, y + buttonSize/2);
+            
+            // Add checkmark for completed levels
+            if (isCompleted) {
+                ctx.fillStyle = '#fff';
+                ctx.font = `${Math.floor(buttonSize * 0.25)}px Arial`;
+                ctx.fillText('✓', x + buttonSize - 8, y + 8);
+            }
+        }
     }
     
         // Navigation buttons - moved up for better positioning
@@ -1440,15 +1551,20 @@ function drawDifficultySelectionPopup() {
         ctx.textBaseline = 'middle';
         ctx.fillText(difficulty, buttonX + 20, buttonY + buttonHeight/2 - 8);
         
-        // Level count
-        ctx.font = '14px Arial';
-        ctx.fillText(`250 levels`, buttonX + 20, buttonY + buttonHeight/2 + 12);
+        // Progress information
+        const progress = progressData[difficulty];
+        const completedCount = progress.completed.length;
+        const unlockedLevel = progress.maxUnlocked;
         
-        // Description
+        ctx.font = '14px Arial';
+        ctx.fillText(`${completedCount}/${LEVELS_PER_DIFFICULTY} completed`, buttonX + 20, buttonY + buttonHeight/2 + 12);
+        
+        // Description and unlock status
         ctx.fillStyle = difficulty === currentDifficulty ? '#ecf0f1' : '#7f8c8d';
         ctx.font = '12px Arial';
         ctx.textAlign = 'right';
-        ctx.fillText(descriptions[index], buttonX + buttonWidth - 20, buttonY + buttonHeight/2);
+        ctx.fillText(`Next: Level ${unlockedLevel}`, buttonX + buttonWidth - 20, buttonY + buttonHeight/2 - 8);
+        ctx.fillText(descriptions[index], buttonX + buttonWidth - 20, buttonY + buttonHeight/2 + 8);
     });
     
     // Close button
@@ -1702,10 +1818,15 @@ function handleLevelSelectorClick(x, y) {
         
         if (x >= btnX && x <= btnX + buttonSize && 
             y >= btnY && y <= btnY + buttonSize) {
-            currentLevelNumber = i;
-            loadLevel(currentLevelNumber, currentDifficulty);
-            window.levelSelectorActive = false;
-            levelSelectorNavigating = false;
+            // Only allow selection if level is unlocked
+            if (isLevelUnlocked(currentDifficulty, i)) {
+                currentLevelNumber = i;
+                loadLevel(currentLevelNumber, currentDifficulty);
+                window.levelSelectorActive = false;
+                levelSelectorNavigating = false;
+            } else {
+                console.log(`Level ${i} is locked in ${currentDifficulty} difficulty`);
+            }
             return;
         }
     }
@@ -1908,7 +2029,8 @@ function handleButtonClick(e) {
                 y >= buttonY && y <= buttonY + buttonHeight) {
                 // Difficulty selected
                 currentDifficulty = DIFFICULTIES[i];
-                currentLevelNumber = 1; // Reset to level 1 when changing difficulty
+                // Set to highest unlocked level in this difficulty
+                currentLevelNumber = Math.min(progressData[currentDifficulty].maxUnlocked, LEVELS_PER_DIFFICULTY);
                 difficultySelectionActive = false;
                 showLevelSelector();
                 return;
@@ -2324,6 +2446,9 @@ function checkWin() {
     // Level completed!
     completionMoves = moveCount;
     levelCompletePopupActive = true;
+    
+    // Mark level as completed and unlock next level
+    markLevelCompleted(currentDifficulty, currentLevelNumber);
     
     // Award hint for every 5 puzzles solved
     puzzlesSolved++;
