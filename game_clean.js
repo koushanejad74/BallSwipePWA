@@ -1413,7 +1413,7 @@ function drawDifficultySelectionPopup() {
         'Perfect for beginners',
         'A good challenge', 
         'For puzzle experts',
-        'Ultimate brain teaser'
+        'Extreme challenge'
     ];
     
     DIFFICULTIES.forEach((difficulty, index) => {
