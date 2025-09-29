@@ -1,0 +1,14 @@
+{
+  "puzzle_info": {
+    "grid_width": 3,
+    "grid_height": 3,
+    "steps_to_solve": 4
+  },
+  "solution_path": [
+    "202010000",
+    "002010200",
+    "002010002",
+    "000012002",
+    "000012200"
+  ]
+}

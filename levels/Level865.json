@@ -1,0 +1,13 @@
+{
+  "puzzle_info": {
+    "grid_width": 3,
+    "grid_height": 3,
+    "steps_to_solve": 3
+  },
+  "solution_path": [
+    "010404000",
+    "010004400",
+    "014000400",
+    "014000004"
+  ]
+}

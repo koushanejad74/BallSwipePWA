@@ -18,7 +18,12 @@ let completionMoves = 0; // Store moves taken when level completed
 // Level selector pagination
 let currentLevelPage = 0; // Current page (0-based)
 let levelSelectorNavigating = false; // Prevent rapid navigation clicks
-let challengeModeActive = false; // Track if we're in challenge mode
+
+// Difficulty system
+let difficultySelectionActive = false; // Track if difficulty selection popup is shown
+let currentDifficulty = 'Easy'; // Current difficulty: Easy, Medium, Hard, Impossible
+const LEVELS_PER_DIFFICULTY = 250; // 250 levels per difficulty
+const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Impossible'];
 
 // Hint system
 let hintPopupActive = false; // Track if hint popup is shown
@@ -53,35 +58,61 @@ function getCurrentGridLayout() {
 }
 
 function initGame() {
-    canvas = document.getElementById('game-canvas');
-    ctx = canvas.getContext('2d');
-    
-    // Set responsive canvas size
-    resizeCanvas();
-    
-    console.log('Canvas initialized');
-    
-    // Add resize listener
-    window.addEventListener('resize', () => {
-        resizeCanvas();
-        // Redraw current state
-        if (currentLevel && gridData) {
-            drawGame();
+    try {
+        console.log('Starting game initialization...');
+        
+        canvas = document.getElementById('game-canvas');
+        if (!canvas) {
+            console.error('Canvas element not found!');
+            return;
         }
-    });
-    
-    // Add orientation change listener for mobile
-    window.addEventListener('orientationchange', () => {
-        setTimeout(() => {
+        
+        ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('Could not get canvas context!');
+            return;
+        }
+        
+        // Set responsive canvas size
+        resizeCanvas();
+        
+        console.log('Canvas initialized successfully');
+        console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
+        
+        // Test draw something immediately
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#333';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Game Loading...', canvas.width / 2, canvas.height / 2);
+        
+        // Add resize listener
+        window.addEventListener('resize', () => {
             resizeCanvas();
+            // Redraw current state
             if (currentLevel && gridData) {
                 drawGame();
             }
-        }, 100);
-    });
-    
-    // Load first level
-    loadLevel(currentLevelNumber);
+        });
+        
+        // Add orientation change listener for mobile
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                resizeCanvas();
+                if (currentLevel && gridData) {
+                    drawGame();
+                }
+            }, 100);
+        });
+        
+        // Load first level
+        console.log('Loading first level...');
+        loadLevel(currentLevelNumber, currentDifficulty);
+        
+    } catch (error) {
+        console.error('Error during game initialization:', error);
+    }
 }
 
 function resizeCanvas() {
@@ -115,68 +146,23 @@ function resizeCanvas() {
     console.log(`Canvas resized to: ${canvasWidth}x${canvasHeight}`);
 }
 
-// Load a random challenging level
-function loadRandomChallengingLevel() {
-    const randomLevelNumber = Math.floor(Math.random() * 100) + 1;
-    const paddedNumber = randomLevelNumber.toString().padStart(3, '0');
-    const levelPath = `RandomLevels/Level${paddedNumber}.json`;
-    
-    console.log(`Loading random challenging level: ${levelPath}`);
-    
-    fetch(levelPath)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Failed to load level: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            currentLevel = data;
-            currentLevelNumber = randomLevelNumber; // For display purposes
-            challengeModeActive = true; // Enable challenge mode
-            
-            // Reset game state
-            moveCount = 0;
-            levelStartPopupActive = true;
-            levelCompletePopupActive = false;
-            helpPopupActive = false;
-            hintPopupActive = false;
-            bonusHintPopupActive = false;
-            noHintsPopupActive = false;
-            pendingBonusHint = false;
-            animatingBall = null;
-            
-            // Clear hint mode if active
-            if (hintModeActive) {
-                exitHintMode();
-            }
-            
-            // Parse the initial state
-            if (currentLevel.solution_path && currentLevel.solution_path.length > 0) {
-                parseGridState(currentLevel.solution_path[0]);
-            }
-            
-            // Parse target state from the last step
-            if (currentLevel.solution_path && currentLevel.solution_path.length > 1) {
-                parseTargetState(currentLevel.solution_path[currentLevel.solution_path.length - 1]);
-            }
-            
-            drawGame();
-        })
-        .catch(error => {
-            console.error('Error loading random challenging level:', error);
-            // Fallback to a regular level if random level fails
-            challengeModeActive = false;
-            loadLevel(1);
-        });
-}
 
-// Load level (modified to handle both regular and challenge modes) from JSON
-async function loadLevel(levelNumber) {
-    challengeModeActive = false; // Exit challenge mode when loading regular level
+
+// Load level from JSON with difficulty support
+async function loadLevel(levelNumber, difficulty = currentDifficulty) {
     try {
-        const levelFileName = `Level${levelNumber.toString().padStart(3, '0')}.json`;
-        console.log(`Loading ${levelFileName}...`);
+        // Calculate actual level number based on difficulty
+        const difficultyIndex = DIFFICULTIES.indexOf(difficulty);
+        const actualLevelNumber = (difficultyIndex * LEVELS_PER_DIFFICULTY) + levelNumber;
+        
+        // Handle special case for level 1000 (which uses different naming)
+        let levelFileName;
+        if (actualLevelNumber === 1000) {
+            levelFileName = 'Level1000.json';
+        } else {
+            levelFileName = `Level${actualLevelNumber.toString().padStart(3, '0')}.json`;
+        }
+        console.log(`Loading ${levelFileName} (${difficulty} Level ${levelNumber})...`);
         console.log('Window location:', window.location.href);
         
         // Use absolute path from root to ensure it works on mobile
@@ -243,7 +229,7 @@ async function loadLevel(levelNumber) {
         // Retry after a short delay
         setTimeout(() => {
             console.log('Retrying level load...');
-            loadLevel(levelNumber);
+            loadLevel(levelNumber, difficulty);
         }, 2000);
     }
 }
@@ -299,7 +285,7 @@ function drawGame() {
     
     ctx.font = `bold ${titleFontSize}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText(`Level ${currentLevelNumber}`, canvas.width / 2, 35);
+    ctx.fillText(`${currentDifficulty} - Level ${currentLevelNumber}`, canvas.width / 2, 35);
     
     ctx.font = `${subtitleFontSize}px Arial`;
     ctx.fillText('Drag balls to move them!', canvas.width / 2, 60);
@@ -352,6 +338,11 @@ function drawGame() {
     if (hintPopupActive) {
         drawHintPopup();
     }
+    
+    // Draw difficulty selection popup if active
+    if (difficultySelectionActive) {
+        drawDifficultySelectionPopup();
+    }
 }
 
 // Draw level start popup
@@ -383,7 +374,7 @@ function drawLevelStartPopup() {
     ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`Level ${currentLevelNumber}`, popupX + popupWidth/2, popupY + 20);
+    ctx.fillText(`${currentDifficulty} - Level ${currentLevelNumber}`, popupX + popupWidth/2, popupY + 20);
     
     // Calculate minimum moves (length of solution path - 1)
     const minMoves = currentLevel.solution_path.length - 1;
@@ -439,21 +430,21 @@ function drawLevelCompletePopup() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     
-    if (currentLevelNumber === 100) {
-        ctx.fillText('� GAME COMPLETE! 🏆', popupX + popupWidth/2, popupY + 20);
+    if (currentLevelNumber === LEVELS_PER_DIFFICULTY) {
+        ctx.fillText(`🏆 ${currentDifficulty.toUpperCase()} COMPLETE! 🏆`, popupX + popupWidth/2, popupY + 20);
     } else {
-        ctx.fillText('�🎉 Congratulations! 🎉', popupX + popupWidth/2, popupY + 20);
+        ctx.fillText('🎉 Congratulations! 🎉', popupX + popupWidth/2, popupY + 20);
     }
     
     // Level completed text
     ctx.fillStyle = '#2c3e50';
     ctx.font = '18px Arial';
     
-    if (currentLevelNumber === 100) {
-        ctx.fillText('You completed ALL 100 levels!', popupX + popupWidth/2, popupY + 55);
-        ctx.fillText('🎮 Master Puzzle Solver! 🎮', popupX + popupWidth/2, popupY + 78);
+    if (currentLevelNumber === LEVELS_PER_DIFFICULTY) {
+        ctx.fillText(`You completed all ${LEVELS_PER_DIFFICULTY} ${currentDifficulty} levels!`, popupX + popupWidth/2, popupY + 55);
+        ctx.fillText('🎮 Difficulty Master! 🎮', popupX + popupWidth/2, popupY + 78);
     } else {
-        ctx.fillText(`Level ${currentLevelNumber} Complete!`, popupX + popupWidth/2, popupY + 55);
+        ctx.fillText(`${currentDifficulty} Level ${currentLevelNumber} Complete!`, popupX + popupWidth/2, popupY + 55);
     }
     
     // Moves taken text
@@ -464,7 +455,7 @@ function drawLevelCompletePopup() {
         `Perfect! Solved in ${completionMoves} moves! ⭐` : 
         `You solved it in ${completionMoves} moves`;
     
-    const movesY = currentLevelNumber === 100 ? popupY + 105 : popupY + 80;
+    const movesY = currentLevelNumber === LEVELS_PER_DIFFICULTY ? popupY + 105 : popupY + 80;
     ctx.fillText(movesText, popupX + popupWidth/2, movesY);
     
     // Buttons
@@ -472,8 +463,8 @@ function drawLevelCompletePopup() {
     const buttonHeight = 35;
     const buttonsY = popupY + popupHeight - 50;
     
-    // Next Level button (if not last level or in challenge mode)
-    if (currentLevelNumber < 100 || challengeModeActive) {
+    // Next Level button (if not last level in difficulty)
+    if (currentLevelNumber < LEVELS_PER_DIFFICULTY) {
         const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
         ctx.fillStyle = '#3498db';
         drawRoundedRect(nextButtonX, buttonsY, buttonWidth, buttonHeight, 8);
@@ -482,12 +473,11 @@ function drawLevelCompletePopup() {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 16px Arial';
         ctx.textBaseline = 'middle';
-        const buttonText = challengeModeActive ? 'Next Challenge' : 'Next Level';
-        ctx.fillText(buttonText, nextButtonX + buttonWidth/2, buttonsY + buttonHeight/2);
+        ctx.fillText('Next Level', nextButtonX + buttonWidth/2, buttonsY + buttonHeight/2);
     }
     
     // Replay button
-    const replayButtonX = (currentLevelNumber < 100 || challengeModeActive) ? 
+    const replayButtonX = currentLevelNumber < LEVELS_PER_DIFFICULTY ? 
         popupX + popupWidth/2 + 5 : 
         popupX + (popupWidth - buttonWidth) / 2;
     
@@ -1265,7 +1255,7 @@ function showLevelSelector() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Select Level', canvas.width / 2, 40);
+    ctx.fillText(`Select Level - ${currentDifficulty}`, canvas.width / 2, 40);
     
     // Close button - top right corner with close icon
     const closeButtonSize = 30;
@@ -1293,11 +1283,11 @@ function showLevelSelector() {
     ctx.lineTo(centerX - crossSize/2, centerY + crossSize/2);
     ctx.stroke();
     
-    // Calculate pagination
+    // Calculate pagination for current difficulty
     const levelsPerPage = 25;
-    const totalPages = Math.ceil(100 / levelsPerPage); // 4 pages total
+    const totalPages = Math.ceil(LEVELS_PER_DIFFICULTY / levelsPerPage); // 10 pages per difficulty
     const startLevel = currentLevelPage * levelsPerPage + 1;
-    const endLevel = Math.min((currentLevelPage + 1) * levelsPerPage, 100);
+    const endLevel = Math.min((currentLevelPage + 1) * levelsPerPage, LEVELS_PER_DIFFICULTY);
     
     // Show page info
     ctx.fillStyle = '#666';
@@ -1356,22 +1346,12 @@ function showLevelSelector() {
         ctx.fillText('\u25c0 Prev', prevX + navButtonWidth/2, navButtonY + navButtonHeight/2);
     }
     
-    // Challenge button (always visible in the middle)
-    const challengeX = startButtonX + navButtonWidth + buttonSpacing;
-    ctx.fillStyle = '#FF5722'; // Orange color to stand out
-    drawRoundedRect(challengeX, navButtonY, navButtonWidth, navButtonHeight, 8);
-    ctx.fill();
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Challenge', challengeX + navButtonWidth/2, navButtonY + navButtonHeight/2);
+
     
     // Next button
     if (currentLevelPage < totalPages - 1) {
         ctx.fillStyle = '#9E9E9E';
-        const nextX = startButtonX + navButtonWidth * 2 + buttonSpacing * 2;
+        const nextX = startButtonX + navButtonWidth + buttonSpacing;
         drawRoundedRect(nextX, navButtonY, navButtonWidth, navButtonHeight, 8);
         ctx.fill();
         
@@ -1384,6 +1364,107 @@ function showLevelSelector() {
     
     // Set flag for level selector mode
     window.levelSelectorActive = true;
+}
+
+// Draw difficulty selection popup
+function drawDifficultySelectionPopup() {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Popup dimensions
+    const popupWidth = Math.min(340, canvas.width - 40);
+    const popupHeight = Math.min(380, canvas.height - 80);
+    const popupX = (canvas.width - popupWidth) / 2;
+    const popupY = (canvas.height - popupHeight) / 2;
+    const cornerRadius = 15;
+    
+    // Popup background
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.fill();
+    
+    // Popup border
+    ctx.strokeStyle = '#3498db';
+    ctx.lineWidth = 3;
+    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
+    ctx.stroke();
+    
+    // Title
+    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 26px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Select Difficulty', popupX + popupWidth/2, popupY + 25);
+    
+    // Subtitle
+    ctx.fillStyle = '#7f8c8d';
+    ctx.font = '16px Arial';
+    ctx.fillText('Choose your challenge level', popupX + popupWidth/2, popupY + 60);
+    
+    // Difficulty buttons
+    const buttonWidth = popupWidth - 60;
+    const buttonHeight = 50;
+    const buttonSpacing = 15;
+    const startY = popupY + 100;
+    
+    const colors = ['#27ae60', '#f39c12', '#e74c3c', '#9b59b6']; // Green, Orange, Red, Purple
+    const descriptions = [
+        'Perfect for beginners',
+        'A good challenge', 
+        'For puzzle experts',
+        'Ultimate brain teaser'
+    ];
+    
+    DIFFICULTIES.forEach((difficulty, index) => {
+        const buttonY = startY + index * (buttonHeight + buttonSpacing);
+        const buttonX = popupX + 30;
+        
+        // Button background
+        ctx.fillStyle = difficulty === currentDifficulty ? colors[index] : '#ecf0f1';
+        drawRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
+        ctx.fill();
+        
+        // Button border for selected difficulty
+        if (difficulty === currentDifficulty) {
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            drawRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
+            ctx.stroke();
+        }
+        
+        // Difficulty name
+        ctx.fillStyle = difficulty === currentDifficulty ? '#ffffff' : '#2c3e50';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(difficulty, buttonX + 20, buttonY + buttonHeight/2 - 8);
+        
+        // Level count
+        ctx.font = '14px Arial';
+        ctx.fillText(`250 levels`, buttonX + 20, buttonY + buttonHeight/2 + 12);
+        
+        // Description
+        ctx.fillStyle = difficulty === currentDifficulty ? '#ecf0f1' : '#7f8c8d';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText(descriptions[index], buttonX + buttonWidth - 20, buttonY + buttonHeight/2);
+    });
+    
+    // Close button
+    const closeButtonSize = 30;
+    const closeX = popupX + popupWidth - closeButtonSize - 10;
+    const closeY = popupY + 10;
+    
+    ctx.fillStyle = '#e74c3c';
+    drawRoundedRect(closeX, closeY, closeButtonSize, closeButtonSize, 15);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('×', closeX + closeButtonSize/2, closeY + closeButtonSize/2);
 }
 
 // Draw hint popup
@@ -1608,7 +1689,7 @@ function handleLevelSelectorClick(x, y) {
     const startY = 90;
     
     const startLevel = currentLevelPage * levelsPerPage + 1;
-    const endLevel = Math.min((currentLevelPage + 1) * levelsPerPage, 100);
+    const endLevel = Math.min((currentLevelPage + 1) * levelsPerPage, LEVELS_PER_DIFFICULTY);
     
     // Check level buttons
     for (let i = startLevel; i <= endLevel; i++) {
@@ -1622,7 +1703,7 @@ function handleLevelSelectorClick(x, y) {
         if (x >= btnX && x <= btnX + buttonSize && 
             y >= btnY && y <= btnY + buttonSize) {
             currentLevelNumber = i;
-            loadLevel(currentLevelNumber);
+            loadLevel(currentLevelNumber, currentDifficulty);
             window.levelSelectorActive = false;
             levelSelectorNavigating = false;
             return;
@@ -1636,7 +1717,7 @@ function handleLevelSelectorClick(x, y) {
     const buttonSpacing = 5;
     const totalButtonsWidth = navButtonWidth * 3 + buttonSpacing * 2;
     const startButtonX = (canvas.width - totalButtonsWidth) / 2;
-    const totalPages = Math.ceil(100 / levelsPerPage);
+    const totalPages = Math.ceil(LEVELS_PER_DIFFICULTY / levelsPerPage);
     
     // Previous button
     if (currentLevelPage > 0) {
@@ -1656,20 +1737,11 @@ function handleLevelSelectorClick(x, y) {
         }
     }
     
-    // Challenge button (always check, positioned in the middle)
-    const challengeX = startButtonX + navButtonWidth + buttonSpacing;
-    if (x >= challengeX && x <= challengeX + navButtonWidth && 
-        y >= navButtonY && y <= navButtonY + navButtonHeight) {
-        console.log('Challenge button clicked');
-        window.levelSelectorActive = false;
-        levelSelectorNavigating = false;
-        loadRandomChallengingLevel();
-        return;
-    }
+
     
     // Next button
     if (currentLevelPage < totalPages - 1) {
-        const nextX = startButtonX + navButtonWidth * 2 + buttonSpacing * 2;
+        const nextX = startButtonX + navButtonWidth + buttonSpacing;
         if (x >= nextX && x <= nextX + navButtonWidth && 
             y >= navButtonY && y <= navButtonY + navButtonHeight) {
             if (!levelSelectorNavigating) {
@@ -1803,6 +1875,48 @@ function handleButtonClick(e) {
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     
+    // Check if difficulty selection popup is active
+    if (difficultySelectionActive) {
+        const popupWidth = Math.min(340, canvas.width - 40);
+        const popupHeight = Math.min(380, canvas.height - 80);
+        const popupX = (canvas.width - popupWidth) / 2;
+        const popupY = (canvas.height - popupHeight) / 2;
+        
+        // Close button
+        const closeButtonSize = 30;
+        const closeX = popupX + popupWidth - closeButtonSize - 10;
+        const closeY = popupY + 10;
+        
+        if (x >= closeX && x <= closeX + closeButtonSize && 
+            y >= closeY && y <= closeY + closeButtonSize) {
+            difficultySelectionActive = false;
+            drawGame();
+            return;
+        }
+        
+        // Difficulty buttons
+        const buttonWidth = popupWidth - 60;
+        const buttonHeight = 50;
+        const buttonSpacing = 15;
+        const startY = popupY + 100;
+        const buttonX = popupX + 30;
+        
+        for (let i = 0; i < DIFFICULTIES.length; i++) {
+            const buttonY = startY + i * (buttonHeight + buttonSpacing);
+            
+            if (x >= buttonX && x <= buttonX + buttonWidth && 
+                y >= buttonY && y <= buttonY + buttonHeight) {
+                // Difficulty selected
+                currentDifficulty = DIFFICULTIES[i];
+                currentLevelNumber = 1; // Reset to level 1 when changing difficulty
+                difficultySelectionActive = false;
+                showLevelSelector();
+                return;
+            }
+        }
+        return;
+    }
+    
     // Check if level start popup is active
     if (levelStartPopupActive) {
         // Handle level start popup continue button
@@ -1839,41 +1953,29 @@ function handleButtonClick(e) {
         if (x >= popupX && x <= popupX + popupWidth && 
             y >= popupY && y <= popupY + popupHeight) {
             
-            // Next Level button (if not last level or in challenge mode)
-            if (currentLevelNumber < 100 || challengeModeActive) {
+            // Next Level button (if not last level in difficulty)
+            if (currentLevelNumber < LEVELS_PER_DIFFICULTY) {
                 const nextButtonX = popupX + popupWidth/2 - buttonWidth - 5;
                 if (x >= nextButtonX && x <= nextButtonX + buttonWidth && 
                     y >= buttonsY && y <= buttonsY + buttonHeight) {
                     levelCompletePopupActive = false;
-                    if (challengeModeActive) {
-                        // Load another random challenging level
-                        loadRandomChallengingLevel();
-                    } else {
-                        // Regular progression to next level
-                        currentLevelNumber++;
-                        loadLevel(currentLevelNumber);
-                    }
+                    // Regular progression to next level
+                    currentLevelNumber++;
+                    loadLevel(currentLevelNumber, currentDifficulty);
                     // Reset pending bonus hint when moving to next level
                     pendingBonusHint = false;
                     return;
                 }
             }
             
-            // Replay button
-            const replayButtonX = currentLevelNumber < 100 ? 
-                popupX + popupWidth/2 + 5 : 
-                popupX + (popupWidth - buttonWidth) / 2;
-            
-            if (x >= replayButtonX && x <= replayButtonX + buttonWidth && 
+    // Replay button
+    const replayButtonX = currentLevelNumber < LEVELS_PER_DIFFICULTY ? 
+        popupX + popupWidth/2 + 5 : 
+        popupX + (popupWidth - buttonWidth) / 2;            if (x >= replayButtonX && x <= replayButtonX + buttonWidth && 
                 y >= buttonsY && y <= buttonsY + buttonHeight) {
                 levelCompletePopupActive = false;
-                if (challengeModeActive) {
-                    // Replay the same random level
-                    loadRandomChallengingLevel();
-                } else {
-                    // Replay the regular level
-                    loadLevel(currentLevelNumber);
-                }
+                // Replay the regular level
+                loadLevel(currentLevelNumber, currentDifficulty);
                 // Reset pending bonus hint when replaying level
                 pendingBonusHint = false;
                 return;
@@ -2043,7 +2145,7 @@ function handleButtonClick(e) {
         if (hintModeActive) {
             exitHintMode();
         }
-        loadLevel(currentLevelNumber);
+        loadLevel(currentLevelNumber, currentDifficulty);
         return;
     }
     
@@ -2051,7 +2153,8 @@ function handleButtonClick(e) {
     if (x >= levelsX && x <= levelsX + buttonSize && 
         y >= buttonYPos && y <= buttonYPos + buttonSize) {
         console.log('Levels button clicked');
-        showLevelSelector();
+        difficultySelectionActive = true;
+        drawGame();
         return;
     }
     

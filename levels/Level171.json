@@ -1,0 +1,14 @@
+{
+  "puzzle_info": {
+    "grid_width": 3,
+    "grid_height": 3,
+    "steps_to_solve": 4
+  },
+  "solution_path": [
+    "400000014",
+    "404000010",
+    "044000010",
+    "004040010",
+    "000040014"
+  ]
+}
