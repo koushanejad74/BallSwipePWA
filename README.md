@@ -102,6 +102,23 @@ Get each colored ball to its matching target circle by strategically dragging an
 - **No Ads** or in-app purchases
 - **Open Source** and free to play
 
+## 🛠️ Development
+
+To run the game locally for development or testing:
+
+```bash
+cd /path/to/BallSwipePWA
+python3 -m http.server 8000
+```
+
+Then open your browser and navigate to `http://localhost:8000`
+
+### Game Features
+- **4 Difficulty Levels**: Easy (1-250), Medium (251-500), Hard (501-750), Evil (751-1000)
+- **Progress Saving**: Automatic progress tracking for each difficulty level
+- **Sequential Unlocking**: Complete levels in order to unlock new ones
+- **1000 Total Levels** across all difficulty modes
+
 ## 🤝 Contributing
 
 This is an open-source project. Feel free to:
