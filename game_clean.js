@@ -10,10 +10,18 @@ let moveCount = 0; // Track number of moves made
 let levelStartPopupActive = false; // Track if level start popup is shown
 let levelCompletePopupActive = false; // Track if level complete popup is shown
 let helpPopupActive = false; // Track if help popup is shown
-let bonusHintPopupActive = false; // Track if bonus hint popup is shown
-let noHintsPopupActive = false; // Track if no hints popup is shown
-let pendingBonusHint = false; // Track if bonus hint popup should show after level completion
 let completionMoves = 0; // Store moves taken when level completed
+
+// Unused hint-related variables (kept to prevent errors)
+let bonusHintPopupActive = false;
+let noHintsPopupActive = false; 
+let pendingBonusHint = false;
+let hintPopupActive = false;
+let hintModeActive = false;
+let currentHintStep = 0;
+let originalGameState = null;
+let availableHints = 3;
+let puzzlesSolved = 0;
 
 // Level selector pagination
 let currentLevelPage = 0; // Current page (0-based)
@@ -33,13 +41,8 @@ let progressData = {
     'Evil': { maxUnlocked: 1, completed: [] }
 };
 
-// Hint system
-let hintPopupActive = false; // Track if hint popup is shown
-let currentHintStep = 0; // Current step in the hint sequence
-let hintModeActive = false; // Track if we're in hint mode
-let originalGameState = null; // Store original state to restore
-let availableHints = 3; // Number of hints available to user
-let puzzlesSolved = 0; // Track completed puzzles for hint rewards
+// Game mode - toggle between progression mode and free mode
+let freeMode = false; // false = progression mode (solve sequentially), true = free mode (play any level)
 
 // Animation variables
 let animatingBall = null; // Currently animating ball
@@ -202,21 +205,8 @@ async function loadLevel(levelNumber, difficulty = currentDifficulty) {
         moveCount = 0;
         updateScoreDisplay();
         
-        // Reset hint system
-        currentHintStep = 0;
-        hintPopupActive = false;
-        hintModeActive = false;
-        originalGameState = null;
-        
-        // Load hint progress from localStorage
-        loadHintProgress();
-        hintPopupActive = false;
-        
         // Show level start popup
         levelStartPopupActive = true;
-        bonusHintPopupActive = false;
-        noHintsPopupActive = false;
-        pendingBonusHint = false;
         
         console.log('Level loaded successfully');
         
@@ -281,8 +271,12 @@ function parseTargetState(stateString) {
 // Progress management functions
 function saveProgress() {
     try {
-        localStorage.setItem('ballSwipeProgress', JSON.stringify(progressData));
-        console.log('Progress saved:', progressData);
+        const saveData = {
+            progressData: progressData,
+            freeMode: freeMode
+        };
+        localStorage.setItem('ballSwipeProgress', JSON.stringify(saveData));
+        console.log('Progress saved:', saveData);
     } catch (error) {
         console.error('Failed to save progress:', error);
     }
@@ -292,17 +286,38 @@ function loadProgress() {
     try {
         const saved = localStorage.getItem('ballSwipeProgress');
         if (saved) {
-            const loadedProgress = JSON.parse(saved);
-            // Merge with default structure to ensure all difficulties exist
-            DIFFICULTIES.forEach(difficulty => {
-                if (loadedProgress[difficulty]) {
-                    progressData[difficulty] = {
-                        maxUnlocked: loadedProgress[difficulty].maxUnlocked || 1,
-                        completed: loadedProgress[difficulty].completed || []
-                    };
-                }
-            });
+            const saveData = JSON.parse(saved);
+            
+            // Handle both old format (just progressData) and new format (object with progressData + freeMode)
+            if (saveData.progressData) {
+                // New format
+                const loadedProgress = saveData.progressData;
+                freeMode = saveData.freeMode || false;
+                
+                // Merge with default structure to ensure all difficulties exist
+                DIFFICULTIES.forEach(difficulty => {
+                    if (loadedProgress[difficulty]) {
+                        progressData[difficulty] = {
+                            maxUnlocked: loadedProgress[difficulty].maxUnlocked || 1,
+                            completed: loadedProgress[difficulty].completed || []
+                        };
+                    }
+                });
+            } else {
+                // Old format - just progressData
+                DIFFICULTIES.forEach(difficulty => {
+                    if (saveData[difficulty]) {
+                        progressData[difficulty] = {
+                            maxUnlocked: saveData[difficulty].maxUnlocked || 1,
+                            completed: saveData[difficulty].completed || []
+                        };
+                    }
+                });
+                freeMode = false; // Default to progression mode for old saves
+            }
+            
             console.log('Progress loaded:', progressData);
+            console.log('Free mode:', freeMode);
         } else {
             console.log('No saved progress found, using defaults');
         }
@@ -315,6 +330,7 @@ function loadProgress() {
             'Hard': { maxUnlocked: 1, completed: [] },
             'Evil': { maxUnlocked: 1, completed: [] }
         };
+        freeMode = false;
     }
 }
 
@@ -338,6 +354,11 @@ function markLevelCompleted(difficulty, levelNumber) {
 }
 
 function isLevelUnlocked(difficulty, levelNumber) {
+    // In free mode, all levels are unlocked
+    if (freeMode) {
+        return true;
+    }
+    // In progression mode, only unlock levels based on progress
     return levelNumber <= progressData[difficulty].maxUnlocked;
 }
 
@@ -400,24 +421,9 @@ function drawGame() {
         drawLevelCompletePopup();
     }
     
-    // Draw bonus hint popup if active
-    if (bonusHintPopupActive) {
-        drawBonusHintPopup();
-    }
-    
-    // Draw no hints popup if active
-    if (noHintsPopupActive) {
-        drawNoHintsPopup();
-    }
-    
     // Draw help popup if active
     if (helpPopupActive) {
         drawHelpPopup();
-    }
-    
-    // Draw hint popup if active
-    if (hintPopupActive) {
-        drawHintPopup();
     }
     
     // Draw difficulty selection popup if active
@@ -586,63 +592,7 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.closePath();
 }
 
-// Draw bonus hint popup
-function drawBonusHintPopup() {
-    // Semi-transparent overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Popup box
-    const popupWidth = 300;
-    const popupHeight = 180;
-    const popupX = (canvas.width - popupWidth) / 2;
-    const popupY = (canvas.height - popupHeight) / 2;
-    const cornerRadius = 12;
-    
-    // Background
-    ctx.fillStyle = '#ffffff';
-    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
-    ctx.fill();
-    
-    // Border
-    ctx.strokeStyle = '#27ae60';
-    ctx.lineWidth = 3;
-    drawRoundedRect(popupX, popupY, popupWidth, popupHeight, cornerRadius);
-    ctx.stroke();
-    
-    // Celebration icon and title
-    ctx.fillStyle = '#27ae60';
-    ctx.font = 'bold 28px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🎉', popupX + popupWidth/2, popupY + 40);
-    
-    ctx.font = 'bold 22px Arial';
-    ctx.fillStyle = '#2c3e50';
-    ctx.fillText('Bonus Hint Earned!', popupX + popupWidth/2, popupY + 75);
-    
-    // Progress info
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#7f8c8d';
-    ctx.fillText(`Puzzles solved: ${puzzlesSolved}`, popupX + popupWidth/2, popupY + 100);
-    ctx.fillText(`Total hints: ${availableHints}`, popupX + popupWidth/2, popupY + 120);
-    
-    // Continue button
-    const buttonWidth = 120;
-    const buttonHeight = 35;
-    const buttonX = popupX + (popupWidth - buttonWidth) / 2;
-    const buttonY = popupY + popupHeight - 50;
-    
-    ctx.fillStyle = '#27ae60';
-    drawRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 8);
-    ctx.fill();
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Awesome!', buttonX + buttonWidth/2, buttonY + buttonHeight/2);
-}
+
 
 // Draw no hints popup
 function drawNoHintsPopup() {
@@ -708,17 +658,15 @@ function drawIconButtons(startX, buttonY, gridWidth) {
     const buttonSize = Math.max(45, Math.min(55, canvas.height / 12)); // Responsive size
     const buttonYPos = buttonY + 15; // Move buttons down a bit more
     
-    // Calculate positions for 4 buttons evenly distributed
-    const spacing = (gridWidth - 4 * buttonSize) / 3; // Space between buttons
+    // Calculate positions for 3 buttons evenly distributed
+    const spacing = (gridWidth - 3 * buttonSize) / 2; // Space between buttons
     const restartX = startX;
     const levelsX = startX + buttonSize + spacing;
-    const hintX = startX + 2 * (buttonSize + spacing);
-    const helpX = startX + 3 * (buttonSize + spacing);
+    const helpX = startX + 2 * (buttonSize + spacing);
     
     // Button colors
     const restartColor = '#FF9800';
     const levelsColor = '#2196F3';
-    const hintColor = '#F39C12';
     const helpColor = '#9C27B0';
     
     // Restart Level button (🔄)
@@ -740,44 +688,6 @@ function drawIconButtons(startX, buttonY, gridWidth) {
     
     ctx.fillStyle = '#fff';
     ctx.fillText('📋', levelsX + buttonSize/2, buttonYPos + buttonSize/2);
-    
-    // Hint button (💡 or ▶️) with hint count
-    ctx.fillStyle = hintColor;
-    drawRoundedRect(hintX, buttonYPos, buttonSize, buttonSize, 12);
-    ctx.fill();
-    
-    ctx.fillStyle = '#fff';
-    const hintIcon = hintModeActive ? '▶️' : '💡';
-    const iconSize = Math.floor(buttonSize * 0.4);
-    ctx.font = `${iconSize}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(hintIcon, hintX + buttonSize/2, buttonYPos + buttonSize/2);
-    
-    // Show hint count in a circular badge on top-right corner
-    if (!hintModeActive && availableHints >= 0) {
-        const badgeRadius = 10;
-        const badgeX = hintX + buttonSize - badgeRadius + 3; // Move right
-        const badgeY = buttonYPos + badgeRadius - 3; // Move up
-        
-        // Draw white circle with black border
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(badgeX, badgeY, badgeRadius, 0, 2 * Math.PI);
-        ctx.fill();
-        
-        // Black border
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        
-        // Hint count text
-        ctx.font = 'bold 11px Arial';
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(availableHints.toString(), badgeX, badgeY);
-    }
     
     // Help button (❓)
     ctx.fillStyle = helpColor;
@@ -1131,16 +1041,21 @@ function showAllHints() {
 
 // Start hint mode - reset to initial state
 function startHintMode() {
-    if (!currentLevel || !currentLevel.solution_path) return;
+    if (!currentLevel || !currentLevel.solution_path) {
+        console.log('No current level or solution path available');
+        return;
+    }
     
     // Check if user has hints available
     if (availableHints <= 0) {
+        console.log('No hints available');
         noHintsPopupActive = true;
         drawGame();
         return;
     }
     
     console.log('Starting hint mode...');
+    console.log('Solution path:', currentLevel.solution_path);
     
     // Consume one hint
     availableHints--;
@@ -1172,7 +1087,9 @@ function startHintMode() {
     // Reset to initial state - force parse
     const initialState = currentLevel.solution_path[0];
     console.log('Resetting to initial state:', initialState);
+    console.log('Grid before parsing:', JSON.parse(JSON.stringify(gridData)));
     parseGridState(initialState);
+    console.log('Grid after parsing:', JSON.parse(JSON.stringify(gridData)));
     
     // Force redraw
     drawGame();
@@ -1190,7 +1107,10 @@ function playNextHintStep() {
         // Apply the next state
         const nextState = currentLevel.solution_path[currentHintStep];
         console.log('Applying state:', nextState);
+        console.log('Step', currentHintStep, 'of', totalSteps);
+        console.log('Grid before step:', JSON.parse(JSON.stringify(gridData)));
         parseGridState(nextState);
+        console.log('Grid after step:', JSON.parse(JSON.stringify(gridData)));
         drawGame();
         
         // Check if we've reached the end
@@ -1338,6 +1258,24 @@ function showLevelSelector() {
     ctx.textAlign = 'center';
     ctx.fillText(`Select Level - ${currentDifficulty}`, canvas.width / 2, 40);
     
+    // Free Mode Toggle Button
+    const toggleButtonWidth = 120;
+    const toggleButtonHeight = 30;
+    const toggleButtonX = (canvas.width - toggleButtonWidth) / 2;
+    const toggleButtonY = 50;
+    
+    // Button background
+    ctx.fillStyle = freeMode ? '#4CAF50' : '#757575';
+    drawRoundedRect(toggleButtonX, toggleButtonY, toggleButtonWidth, toggleButtonHeight, 15);
+    ctx.fill();
+    
+    // Button text
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(freeMode ? 'Free Mode ON' : 'Progression Mode', toggleButtonX + toggleButtonWidth/2, toggleButtonY + toggleButtonHeight/2);
+    
     // Close button - top right corner with close icon
     const closeButtonSize = 30;
     const closeButtonX = canvas.width - closeButtonSize - 15;
@@ -1373,7 +1311,7 @@ function showLevelSelector() {
     // Show page info
     ctx.fillStyle = '#666';
     ctx.font = '14px Arial';
-    ctx.fillText(`Page ${currentLevelPage + 1} of ${totalPages} (Levels ${startLevel}-${endLevel})`, canvas.width / 2, 65);
+    ctx.fillText(`Page ${currentLevelPage + 1} of ${totalPages} (Levels ${startLevel}-${endLevel})`, canvas.width / 2, 95);
     
     // Draw level buttons for current page
     const levelsPerRow = 5; // Show 5 levels per row
@@ -1381,7 +1319,7 @@ function showLevelSelector() {
     const spacing = 8;
     const totalWidth = levelsPerRow * buttonSize + (levelsPerRow - 1) * spacing;
     const startX = (canvas.width - totalWidth) / 2;
-    const startY = 90;
+    const startY = 110;
     
     for (let i = startLevel; i <= endLevel; i++) {
         const levelIndex = i - startLevel; // 0-24 for current page
@@ -1796,13 +1734,28 @@ function getDirection(fromRow, fromCol, toRow, toCol) {
 
 // Handle level selector clicks with pagination
 function handleLevelSelectorClick(x, y) {
+    // Free Mode Toggle Button
+    const toggleButtonWidth = 120;
+    const toggleButtonHeight = 30;
+    const toggleButtonX = (canvas.width - toggleButtonWidth) / 2;
+    const toggleButtonY = 50;
+    
+    if (x >= toggleButtonX && x <= toggleButtonX + toggleButtonWidth &&
+        y >= toggleButtonY && y <= toggleButtonY + toggleButtonHeight) {
+        freeMode = !freeMode;
+        console.log('Mode switched to:', freeMode ? 'Free Mode' : 'Progression Mode');
+        saveProgress(); // Save the setting
+        drawGame(); // Redraw to show updated level locks/unlocks
+        return;
+    }
+    
     const levelsPerPage = 25;
     const levelsPerRow = 5;
     const buttonSize = Math.min(50, (canvas.width - 80) / levelsPerRow);
     const spacing = 8;
     const totalWidth = levelsPerRow * buttonSize + (levelsPerRow - 1) * spacing;
     const startX = (canvas.width - totalWidth) / 2;
-    const startY = 90;
+    const startY = 110;
     
     const startLevel = currentLevelPage * levelsPerPage + 1;
     const endLevel = Math.min((currentLevelPage + 1) * levelsPerPage, LEVELS_PER_DIFFICULTY);
@@ -2253,20 +2206,16 @@ function handleButtonClick(e) {
     const buttonSize = Math.max(45, Math.min(55, canvas.height / 12));
     const gridWidth = layout.width * layout.cellSize;
     
-    // Calculate positions for 4 buttons evenly distributed (matching drawIconButtons)
-    const spacing = (gridWidth - 4 * buttonSize) / 3; // Space between buttons
+    // Calculate positions for 3 buttons evenly distributed (matching drawIconButtons)
+    const spacing = (gridWidth - 3 * buttonSize) / 2; // Space between buttons
     const restartX = layout.startX;
     const levelsX = layout.startX + buttonSize + spacing;
-    const hintX = layout.startX + 2 * (buttonSize + spacing);
-    const helpX = layout.startX + 3 * (buttonSize + spacing);
+    const helpX = layout.startX + 2 * (buttonSize + spacing);
     
     // Restart button
     if (x >= restartX && x <= restartX + buttonSize && 
         y >= buttonYPos && y <= buttonYPos + buttonSize) {
         console.log('Restart button clicked');
-        if (hintModeActive) {
-            exitHintMode();
-        }
         loadLevel(currentLevelNumber, currentDifficulty);
         return;
     }
@@ -2277,21 +2226,6 @@ function handleButtonClick(e) {
         console.log('Levels button clicked');
         difficultySelectionActive = true;
         drawGame();
-        return;
-    }
-    
-    // Hint button
-    if (x >= hintX && x <= hintX + buttonSize && 
-        y >= buttonYPos && y <= buttonYPos + buttonSize) {
-        console.log('Hint button clicked');
-        
-        if (!hintModeActive) {
-            // Enter hint mode - go to initial state
-            startHintMode();
-        } else {
-            // Play next step
-            playNextHintStep();
-        }
         return;
     }
     
