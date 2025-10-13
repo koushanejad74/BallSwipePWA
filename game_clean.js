@@ -49,6 +49,48 @@ let animatingBall = null; // Currently animating ball
 let animationStartTime = 0;
 let animationDuration = 300; // Animation duration in milliseconds
 
+// Button icon images
+let buttonImages = {
+    reset: null,
+    levels: null,
+    help: null
+};
+let imagesLoaded = false;
+
+// Load button icon images
+function loadButtonImages() {
+    const imageUrls = {
+        reset: 'icons/reset.png',
+        levels: 'icons/levels.png', 
+        help: 'icons/help.png'
+    };
+    
+    let loadedCount = 0;
+    const totalImages = Object.keys(imageUrls).length;
+    
+    for (const [key, url] of Object.entries(imageUrls)) {
+        const img = new Image();
+        img.onload = () => {
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                imagesLoaded = true;
+                console.log('All button images loaded successfully');
+                drawGame(); // Redraw with images
+            }
+        };
+        img.onerror = () => {
+            console.error(`Failed to load ${key} image: ${url}`);
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                console.log('Image loading completed (some may have failed)');
+                drawGame();
+            }
+        };
+        img.src = url;
+        buttonImages[key] = img;
+    }
+}
+
 // Initialize game
 // Calculate current grid layout - used by both drawing and interaction
 function getCurrentGridLayout() {
@@ -119,6 +161,9 @@ function initGame() {
         
         // Load progress from localStorage
         loadProgress();
+        
+        // Load button images
+        loadButtonImages();
         
         // Set current level to the highest unlocked level in current difficulty
         currentLevelNumber = Math.min(progressData[currentDifficulty].maxUnlocked, LEVELS_PER_DIFFICULTY);
@@ -664,38 +709,68 @@ function drawIconButtons(startX, buttonY, gridWidth) {
     const levelsX = startX + buttonSize + spacing;
     const helpX = startX + 2 * (buttonSize + spacing);
     
-    // Button colors
-    const restartColor = '#FF9800';
-    const levelsColor = '#2196F3';
-    const helpColor = '#9C27B0';
+    // Button colors - all buttons use the same light gray background
+    const buttonColor = '#BDBDBD'; // Light gray
     
-    // Restart Level button (🔄)
-    ctx.fillStyle = restartColor;
+    // Restart Level button
+    ctx.fillStyle = buttonColor;
     drawRoundedRect(restartX, buttonYPos, buttonSize, buttonSize, 12);
     ctx.fill();
     
     // Restart icon
-    ctx.fillStyle = '#fff';
-    ctx.font = `${Math.floor(buttonSize * 0.5)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🔄', restartX + buttonSize/2, buttonYPos + buttonSize/2);
+    if (imagesLoaded && buttonImages.reset && buttonImages.reset.complete) {
+        const iconSize = buttonSize * 0.6; // Make icon 60% of button size
+        const iconX = restartX + (buttonSize - iconSize) / 2;
+        const iconY = buttonYPos + (buttonSize - iconSize) / 2;
+        ctx.drawImage(buttonImages.reset, iconX, iconY, iconSize, iconSize);
+    } else {
+        // Fallback to emoji if image not loaded
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.floor(buttonSize * 0.5)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🔄', restartX + buttonSize/2, buttonYPos + buttonSize/2);
+    }
     
-    // Levels button (📋)
-    ctx.fillStyle = levelsColor;
+    // Levels button
+    ctx.fillStyle = buttonColor;
     drawRoundedRect(levelsX, buttonYPos, buttonSize, buttonSize, 12);
     ctx.fill();
     
-    ctx.fillStyle = '#fff';
-    ctx.fillText('📋', levelsX + buttonSize/2, buttonYPos + buttonSize/2);
+    // Levels icon
+    if (imagesLoaded && buttonImages.levels && buttonImages.levels.complete) {
+        const iconSize = buttonSize * 0.6;
+        const iconX = levelsX + (buttonSize - iconSize) / 2;
+        const iconY = buttonYPos + (buttonSize - iconSize) / 2;
+        ctx.drawImage(buttonImages.levels, iconX, iconY, iconSize, iconSize);
+    } else {
+        // Fallback to emoji if image not loaded
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.floor(buttonSize * 0.5)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('📋', levelsX + buttonSize/2, buttonYPos + buttonSize/2);
+    }
     
-    // Help button (❓)
-    ctx.fillStyle = helpColor;
+    // Help button
+    ctx.fillStyle = buttonColor;
     drawRoundedRect(helpX, buttonYPos, buttonSize, buttonSize, 12);
     ctx.fill();
     
-    ctx.fillStyle = '#fff';
-    ctx.fillText('❓', helpX + buttonSize/2, buttonYPos + buttonSize/2);
+    // Help icon
+    if (imagesLoaded && buttonImages.help && buttonImages.help.complete) {
+        const iconSize = buttonSize * 0.6;
+        const iconX = helpX + (buttonSize - iconSize) / 2;
+        const iconY = buttonYPos + (buttonSize - iconSize) / 2;
+        ctx.drawImage(buttonImages.help, iconX, iconY, iconSize, iconSize);
+    } else {
+        // Fallback to emoji if image not loaded
+        ctx.fillStyle = '#fff';
+        ctx.font = `${Math.floor(buttonSize * 0.5)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('❓', helpX + buttonSize/2, buttonYPos + buttonSize/2);
+    }
 }
 
 // Draw help popup
