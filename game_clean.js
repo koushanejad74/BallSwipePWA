@@ -1558,8 +1558,7 @@ function drawDifficultySelectionPopup() {
         ctx.fillStyle = difficulty === currentDifficulty ? '#ecf0f1' : '#7f8c8d';
         ctx.font = '12px Arial';
         ctx.textAlign = 'right';
-        ctx.fillText(`Next: Level ${unlockedLevel}`, buttonX + buttonWidth - 20, buttonY + buttonHeight/2 - 8);
-        ctx.fillText(descriptions[index], buttonX + buttonWidth - 20, buttonY + buttonHeight/2 + 8);
+        ctx.fillText(descriptions[index], buttonX + buttonWidth - 20, buttonY + buttonHeight/2 - 8);
     });
     
     // Close button
