@@ -1333,24 +1333,6 @@ function showLevelSelector() {
     ctx.textAlign = 'center';
     ctx.fillText(`Select Level - ${currentDifficulty}`, canvas.width / 2, 40);
     
-    // Free Mode Toggle Button
-    const toggleButtonWidth = 120;
-    const toggleButtonHeight = 30;
-    const toggleButtonX = (canvas.width - toggleButtonWidth) / 2;
-    const toggleButtonY = 50;
-    
-    // Button background
-    ctx.fillStyle = freeMode ? '#4CAF50' : '#757575';
-    drawRoundedRect(toggleButtonX, toggleButtonY, toggleButtonWidth, toggleButtonHeight, 15);
-    ctx.fill();
-    
-    // Button text
-    ctx.fillStyle = '#fff';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(freeMode ? 'Free Mode ON' : 'Progression Mode', toggleButtonX + toggleButtonWidth/2, toggleButtonY + toggleButtonHeight/2);
-    
     // Close button - top right corner with close icon
     const closeButtonSize = 30;
     const closeButtonX = canvas.width - closeButtonSize - 15;
@@ -1386,7 +1368,7 @@ function showLevelSelector() {
     // Show page info
     ctx.fillStyle = '#666';
     ctx.font = '14px Arial';
-    ctx.fillText(`Page ${currentLevelPage + 1} of ${totalPages} (Levels ${startLevel}-${endLevel})`, canvas.width / 2, 95);
+    ctx.fillText(`Page ${currentLevelPage + 1} of ${totalPages} (Levels ${startLevel}-${endLevel})`, canvas.width / 2, 65);
     
     // Draw level buttons for current page
     const levelsPerRow = 5; // Show 5 levels per row
@@ -1394,7 +1376,7 @@ function showLevelSelector() {
     const spacing = 8;
     const totalWidth = levelsPerRow * buttonSize + (levelsPerRow - 1) * spacing;
     const startX = (canvas.width - totalWidth) / 2;
-    const startY = 110;
+    const startY = 90;
     
     for (let i = startLevel; i <= endLevel; i++) {
         const levelIndex = i - startLevel; // 0-24 for current page
@@ -1452,8 +1434,8 @@ function showLevelSelector() {
     const navButtonWidth = 80;
     const navButtonHeight = 35;
     const navButtonY = startY + 5 * (buttonSize + spacing) + 20;
-    const buttonSpacing = 5;
-    const totalButtonsWidth = navButtonWidth * 3 + buttonSpacing * 2; // 3 buttons with spacing
+    const buttonSpacing = 15;
+    const totalButtonsWidth = navButtonWidth * 2 + buttonSpacing; // 2 buttons with spacing
     const startButtonX = (canvas.width - totalButtonsWidth) / 2;
     
     // Previous button
@@ -1809,28 +1791,13 @@ function getDirection(fromRow, fromCol, toRow, toCol) {
 
 // Handle level selector clicks with pagination
 function handleLevelSelectorClick(x, y) {
-    // Free Mode Toggle Button
-    const toggleButtonWidth = 120;
-    const toggleButtonHeight = 30;
-    const toggleButtonX = (canvas.width - toggleButtonWidth) / 2;
-    const toggleButtonY = 50;
-    
-    if (x >= toggleButtonX && x <= toggleButtonX + toggleButtonWidth &&
-        y >= toggleButtonY && y <= toggleButtonY + toggleButtonHeight) {
-        freeMode = !freeMode;
-        console.log('Mode switched to:', freeMode ? 'Free Mode' : 'Progression Mode');
-        saveProgress(); // Save the setting
-        drawGame(); // Redraw to show updated level locks/unlocks
-        return;
-    }
-    
     const levelsPerPage = 25;
     const levelsPerRow = 5;
     const buttonSize = Math.min(50, (canvas.width - 80) / levelsPerRow);
     const spacing = 8;
     const totalWidth = levelsPerRow * buttonSize + (levelsPerRow - 1) * spacing;
     const startX = (canvas.width - totalWidth) / 2;
-    const startY = 110;
+    const startY = 90;
     
     const startLevel = currentLevelPage * levelsPerPage + 1;
     const endLevel = Math.min((currentLevelPage + 1) * levelsPerPage, LEVELS_PER_DIFFICULTY);
@@ -1863,8 +1830,8 @@ function handleLevelSelectorClick(x, y) {
     const navButtonWidth = 80;
     const navButtonHeight = 35;
     const navButtonY = startY + 5 * (buttonSize + spacing) + 20;
-    const buttonSpacing = 5;
-    const totalButtonsWidth = navButtonWidth * 3 + buttonSpacing * 2;
+    const buttonSpacing = 15;
+    const totalButtonsWidth = navButtonWidth * 2 + buttonSpacing;
     const startButtonX = (canvas.width - totalButtonsWidth) / 2;
     const totalPages = Math.ceil(LEVELS_PER_DIFFICULTY / levelsPerPage);
     
